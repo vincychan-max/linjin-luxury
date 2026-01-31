@@ -129,7 +129,7 @@ export default function VIPServicesPage() {
           <div className="bg-gradient-to-br from-black via-gray-900 to-black text-white p-16 md:p-24 rounded-3xl shadow-2xl text-center">
             <h1 className="text-5xl md:text-7xl uppercase tracking-widest mb-12">Your VIP Status</h1>
             
-            <div className="text-9xl mb-8">{levelIcon[vipLevel]}</div>
+            <div className="text-9xl mb-8">{levelIcon[vipLevel as keyof typeof levelIcon] ?? '默认图标'}</div>
             <p className="text-5xl md:text-6xl uppercase tracking-widest mb-8">{vipLevel}</p>
             
             <p className="text-2xl md:text-3xl opacity-90 mb-12">
