@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { getDocs, updateDoc } from "firebase/firestore";
 
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { db } from '@/lib/firebase';
@@ -16,7 +17,8 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
-  orderBy
+  orderBy,
+  getDocs
 } from "firebase/firestore";
 
 export default function AddressBookPage() {
