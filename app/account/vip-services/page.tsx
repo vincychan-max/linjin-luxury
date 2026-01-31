@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
@@ -12,7 +13,7 @@ import { addDoc, collection } from "firebase/firestore";
 export default function VIPServicesPage() {
   const auth = getAuth();
   const [user, setUser] = useState<any>(null);
-  const [vipLevel, setVipLevel] = useState('Silver');
+  const [vipLevel, setVipLevel] = useState<'Silver' | 'Gold' | 'Platinum' | 'Diamond'>('Silver');
   const [vipSpent, setVipSpent] = useState(0);
   const [nextLevel, setNextLevel] = useState({ name: 'Gold', threshold: 10000 });
   const [loading, setLoading] = useState(true);
@@ -44,7 +45,7 @@ export default function VIPServicesPage() {
       const userRef = doc(db, "users", currentUser.uid);
       const userSnap = await getDoc(userRef);
       let spent = 0;
-      let level = 'Silver';
+      let level: 'Silver' | 'Gold' | 'Platinum' | 'Diamond' = 'Silver';
 
       if (userSnap.exists()) {
         spent = userSnap.data().vip_spent_annual || 0;
@@ -97,20 +98,20 @@ export default function VIPServicesPage() {
     }
   };
 
-  // VIP 权益 + 图标
+  // VIP 权益 + 图标（已修复 TypeScript 类型错误）
   const levelIcon = {
     Silver: '⭐',
     Gold: '🥇',
     Platinum: '💎',
     Diamond: '👑'
-  };
+  } as const;
 
   const vipBenefits = {
     Silver: ['Birthday $100 exclusive coupon', '48-hour early access to new collections'],
     Gold: ['All Silver benefits', 'Exclusive 8% discount code (one-time)', 'Priority 1-day shipping', '2 personal styling sessions per year'],
     Platinum: ['All Gold benefits', 'Exclusive 12% discount code (one-time)', 'Free global express shipping', 'Priority bespoke customization'],
     Diamond: ['All Platinum benefits', 'Exclusive 15% discount code (one-time)', 'Dedicated personal shopper', 'Annual limited-edition gift', 'Lifetime Diamond status']
-  };
+  } as const;
 
   if (loading) {
     return (
@@ -128,7 +129,7 @@ export default function VIPServicesPage() {
           <div className="bg-gradient-to-br from-black via-gray-900 to-black text-white p-16 md:p-24 rounded-3xl shadow-2xl text-center">
             <h1 className="text-5xl md:text-7xl uppercase tracking-widest mb-12">Your VIP Status</h1>
             
-            <div className="text-9xl mb-8">{levelIcon[vipLevel as keyof typeof levelIcon] ?? '⭐'}</div>
+            <div className="text-9xl mb-8">{levelIcon[vipLevel] ?? '⭐'}</div>
             <p className="text-5xl md:text-6xl uppercase tracking-widest mb-8">{vipLevel}</p>
             
             <p className="text-2xl md:text-3xl opacity-90 mb-12">
@@ -151,7 +152,7 @@ export default function VIPServicesPage() {
 
             {/* 权益列表 - 极简高端 */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto text-left">
-              {vipBenefits[vipLevel as keyof typeof vipBenefits].map((benefit, i) => (
+              {vipBenefits[vipLevel].map((benefit, i) => (
                 <p key={i} className="text-lg md:text-xl opacity-90 flex items-center gap-4">
                   <span className="text-2xl">✓</span> {benefit}
                 </p>
@@ -185,6 +186,7 @@ export default function VIPServicesPage() {
               alt="Linjin VIP Experience"
               fill
               className="object-cover"
+              priority
               placeholder="blur"
               blurDataURL="/images/placeholder-blur.jpg"
             />
@@ -241,7 +243,6 @@ export default function VIPServicesPage() {
           <p className="text-2xl opacity-70">
             WhatsApp: +86 17817026596<br />
             Email: linjinluxury@gmail.com<br />
-            
           </p>
         </div>
 
