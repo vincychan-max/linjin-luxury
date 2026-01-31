@@ -152,7 +152,7 @@ export default function VIPServicesPage() {
 
             {/* 权益列表 - 极简高端 */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto text-left">
-              {vipBenefits[vipLevel].map((benefit, i) => (
+              {(vip.recLevel in vipBenefits ? vipBenefits[vipLevel as keyof typeof vipBenefits] : []).map((benefit, i) => (
                 <p key={i} className="text-lg md:text-xl opacity-90 flex items-center gap-4">
                   <span className="text-2xl">✓</span> {benefit}
                 </p>
