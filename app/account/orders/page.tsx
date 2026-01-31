@@ -42,12 +42,20 @@ export default function MyOrdersPage() {
     }
   };
 
-  // 物流跟踪链接（可选）
-  const getTrackingLink = (trackingNumber: string) => {
-    if (!trackingNumber) return null;
+  // 物流跟踪链接（修复：返回 undefined 而不是 null，避免 TypeScript 类型错误）
+  const getTrackingLink = (trackingNumber?: string): string | undefined => {
+    if (!trackingNumber) return undefined;
+
     const num = trackingNumber.trim();
-    if (num.length === 22 || /^9[245]/.test(num)) return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${num}`;
-    if (/^1Z/i.test(num) && num.length === 18) return `https://www.ups.com/track?loc=en_US&tracknum=${num}`;
+
+    if (num.length === 22 || /^9[245]/.test(num)) {
+      return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${num}`;
+    }
+
+    if (/^1Z/i.test(num) && num.length === 18) {
+      return `https://www.ups.com/track?loc=en_US&tracknum=${num}`;
+    }
+
     return `https://www.fedex.com/fedextrack/?trknbr=${num}`;
   };
 
@@ -103,7 +111,7 @@ export default function MyOrdersPage() {
                       <p>
                         <span className="font-bold">Tracking Number:</span> {order.tracking_number}
                         <a 
-                          href={getTrackingLink(order.tracking_number)} 
+                          href={getTrackingLink(order.tracking_number) ?? '#'}
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="ml-4 text-blue-600 underline hover:text-blue-800"
