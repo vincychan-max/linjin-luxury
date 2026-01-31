@@ -278,7 +278,7 @@ export default function ProductListClient({ params }: Props) {
     groups: [],
   };
 
-  const filterCategory = config.categoryMap[subCategory] ?? null;
+  const filterCategory = (config.categoryMap as Record<string, string | null>)[subCategory] ?? null;
   const currentMainGroup = config.currentMainGroup;
 
   const fetchProducts = async (isInitial = false) => {
