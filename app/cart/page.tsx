@@ -24,10 +24,22 @@ import {
   orderBy
 } from "firebase/firestore";
 
+// 地址类型定义（修复 isDefault 类型错误）
+interface Address {
+  id: string;
+  name: string;
+  street: string;
+  city: string;
+  state?: string;
+  zip: string;
+  country: string;
+  isDefault?: boolean;
+}
+
 export default function CartPage() {
   const router = useRouter();
   const [cartItems, setCartItems] = useState<any[]>([]);
-  const [addresses, setAddresses] = useState<any[]>([]);
+  const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [address, setAddress] = useState({
     name: '', street: '', city: '', state: '', zip: '', country: 'United States'
@@ -83,7 +95,7 @@ export default function CartPage() {
       const addressesRef = collection(db, "users", user.uid, "addresses");
       const addressesQ = query(addressesRef, orderBy("created_at", "desc"));
       const unsubscribeAddresses = onSnapshot(addressesQ, (snapshot) => {
-        const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Address));
         setAddresses(list);
 
         // 自动选中默认地址
@@ -152,9 +164,8 @@ export default function CartPage() {
   }
   const tax = subtotal * taxRate;
 
-  // 国家运费表（对象 Map，易扩展）
+  // 国家运费表
   const shippingRates: Record<string, number> = {
-    // 美国和发达国家 $50
     'United States': 50,
     'Canada': 50,
     'United Kingdom': 50,
@@ -169,8 +180,6 @@ export default function CartPage() {
     'Singapore': 50,
     'Hong Kong': 50,
     'India': 50,
-
-    // 东南亚（印尼 $50，其他 $30）
     'Indonesia': 50,
     'Thailand': 30,
     'Malaysia': 30,
@@ -181,8 +190,6 @@ export default function CartPage() {
     'Laos': 30,
     'Brunei': 30,
     'East Timor': 30,
-
-    // 南美 $120
     'Brazil': 120,
     'Argentina': 120,
     'Chile': 120,
@@ -196,8 +203,6 @@ export default function CartPage() {
     'Guyana': 120,
     'Suriname': 120,
     'French Guiana': 120,
-
-    // 非洲 $110
     'South Africa': 110,
     'Nigeria': 110,
     'Egypt': 110,
@@ -213,14 +218,13 @@ export default function CartPage() {
     'Sudan': 110,
   };
 
-  // 动态运费（未定义国家默认 $60）
   let shipping = shippingRates[address.country] || 60;
 
   const discount = validDiscount?.amount || 0;
 
   const total = subtotal + shipping + tax - discount;
 
-  // 应用优惠码（动态验证 + 次数限制 + 一次性支持）
+  // 应用优惠码
   const applyCoupon = async () => {
     const code = coupon.toUpperCase().trim();
     if (!code) {
@@ -246,28 +250,24 @@ export default function CartPage() {
       const data = couponDoc.data();
       const now = new Date();
 
-      // 检查有效期
       if (data.expires && data.expires.toDate() < now) {
         toast.error('Coupon expired');
         setValidDiscount(null);
         return;
       }
 
-      // 检查最低金额
       if (data.min_subtotal && subtotal < data.min_subtotal) {
         toast.error(`Minimum subtotal $${data.min_subtotal} required`);
         setValidDiscount(null);
         return;
       }
 
-      // 检查总使用次数限制
       if (data.max_uses !== null && data.used_count >= data.max_uses) {
         toast.error('Coupon usage limit reached');
         setValidDiscount(null);
         return;
       }
 
-      // 检查每个用户限用次数
       const perUserLimit = data.per_user_limit || 1;
       const usesRef = collection(db, "coupons", code, "uses");
       const userUsesQuery = query(usesRef, where("user_id", "==", auth.currentUser.uid));
@@ -279,7 +279,6 @@ export default function CartPage() {
         return;
       }
 
-      // 计算折扣
       let discountAmount = 0;
       if (data.type === 'percent') {
         discountAmount = subtotal * data.discount;
@@ -289,7 +288,7 @@ export default function CartPage() {
 
       setValidDiscount({ amount: discountAmount, code });
       toast.success(`${code} applied! ${data.type === 'percent' ? `${(data.discount * 100).toFixed(0)}%` : `$${data.discount}`} off`);
-      setCoupon(''); // 清空输入
+      setCoupon('');
     } catch (error) {
       console.error(error);
       toast.error('Failed to validate coupon');
@@ -325,7 +324,7 @@ export default function CartPage() {
     }
   };
 
-  // 地址验证（只提示）
+  // 地址验证
   const validateAddress = () => {
     if (!address.name.trim()) toast.error('Full Name is required');
     if (!address.street.trim()) toast.error('Street Address is required');
@@ -400,11 +399,10 @@ export default function CartPage() {
 
         {/* 结账区 */}
         <div className="space-y-24">
-          {/* Shipping Address - 地址选择 + 手动输入 */}
+          {/* Shipping Address */}
           <div className="bg-white p-8 md:p-16 rounded-2xl shadow-lg">
             <h2 className="text-3xl md:text-4xl uppercase tracking-widest mb-12">Shipping Address</h2>
 
-            {/* 保存地址选择 */}
             {addresses.length > 0 ? (
               <div className="mb-12">
                 <select 
@@ -432,13 +430,12 @@ export default function CartPage() {
               </p>
             )}
 
-            {/* 手动输入表单（始终显示） */}
+            {/* 手动输入表单 */}
             <div className="grid gap-8 text-xl md:text-2xl">
               <input type="text" placeholder="Full Name *" value={address.name} onChange={e => setAddress({...address, name: e.target.value})} className="w-full border-b-2 border-gray-300 py-4 focus:border-black outline-none transition text-black placeholder:text-gray-500" />
               <input type="text" placeholder="Street Address *" value={address.street} onChange={e => setAddress({...address, street: e.target.value})} className="w-full border-b-2 border-gray-300 py-4 focus:border-black outline-none transition text-black placeholder:text-gray-500" />
               <input type="text" placeholder="City *" value={address.city} onChange={e => setAddress({...address, city: e.target.value})} className="w-full border-b-2 border-gray-300 py-4 focus:border-black outline-none transition text-black placeholder:text-gray-500" />
 
-              {/* 国家选择 */}
               <select 
                 value={address.country} 
                 onChange={e => setAddress({...address, country: e.target.value, state: '', zip: ''})}
@@ -459,7 +456,6 @@ export default function CartPage() {
                 <option value="Hong Kong">Hong Kong</option>
                 <option value="India">India</option>
 
-                {/* 东南亚国家组 */}
                 <optgroup label="Southeast Asia">
                   <option value="Indonesia">Indonesia</option>
                   <option value="Thailand">Thailand</option>
@@ -473,7 +469,6 @@ export default function CartPage() {
                   <option value="East Timor">East Timor</option>
                 </optgroup>
 
-                {/* 南美国家组 */}
                 <optgroup label="South America">
                   <option value="Brazil">Brazil</option>
                   <option value="Argentina">Argentina</option>
@@ -489,7 +484,6 @@ export default function CartPage() {
                   <option value="French Guiana">French Guiana</option>
                 </optgroup>
 
-                {/* 非洲国家组 */}
                 <optgroup label="Africa">
                   <option value="South Africa">South Africa</option>
                   <option value="Nigeria">Nigeria</option>
@@ -509,7 +503,6 @@ export default function CartPage() {
                 <option value="Other">Other Countries</option>
               </select>
 
-              {/* 美国专属 State + ZIP */}
               {address.country === 'United States' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <select 
@@ -534,7 +527,6 @@ export default function CartPage() {
                 </div>
               )}
 
-              {/* 非美国只显示邮编 */}
               {address.country !== 'United States' && (
                 <input type="text" placeholder="ZIP / Postal Code" value={address.zip} onChange={e => setAddress({...address, zip: e.target.value})} className="w-full border-b-2 border-gray-300 py-4 focus:border-black outline-none transition text-black placeholder:text-gray-500" />
               )}
@@ -626,15 +618,25 @@ export default function CartPage() {
                     toast.error('Invalid order amount');
                     return;
                   }
+
                   return actions.order.create({
                     purchase_units: [{
                       amount: {
                         value: total.toFixed(2),
                         currency_code: 'USD',
                         breakdown: {
-                          item_total: { value: subtotal.toFixed(2), currency_code: 'USD' },
-                          shipping: { value: shipping.toFixed(2), currency_code: 'USD' },
-                          tax_total: { value: tax.toFixed(2), currency_code: 'USD' },
+                          item_total: {
+                            value: subtotal.toFixed(2),
+                            currency_code: 'USD'
+                          },
+                          shipping: {
+                            value: shipping.toFixed(2),
+                            currency_code: 'USD'
+                          },
+                          tax_total: {
+                            value: tax.toFixed(2),
+                            currency_code: 'USD'
+                          }
                         }
                       },
                       description: 'Linjin Luxury Premium Order'
@@ -646,16 +648,13 @@ export default function CartPage() {
                     const order = await actions.order.capture();
                     toast.success('Payment successful! Order confirmed.');
 
-                    // 如果用了优惠码，记录使用次数
                     if (validDiscount) {
                       const couponRef = doc(db, "coupons", validDiscount.code);
                       
-                      // 增加总使用次数
                       await updateDoc(couponRef, {
                         used_count: increment(1)
                       });
 
-                      // 记录用户使用（subcollection）
                       await addDoc(collection(db, "coupons", validDiscount.code, "uses"), {
                         user_id: auth.currentUser?.uid,
                         order_id: order.id,
@@ -663,7 +662,6 @@ export default function CartPage() {
                       });
                     }
 
-                    // 存订单
                     await addDoc(collection(db, "orders"), {
                       user_id: auth.currentUser?.uid,
                       paypal_order_id: order.id,
@@ -687,7 +685,6 @@ export default function CartPage() {
                       created_at: new Date(),
                     });
 
-                    // 清空购物车
                     await Promise.all(cartItems.map(item => deleteDoc(doc(db, "cart_items", item.docId))));
 
                     router.push('/my-orders');
