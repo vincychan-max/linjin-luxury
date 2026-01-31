@@ -1,0 +1,113 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+html, body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+  /* 关键：防止页面整体滚动跳动和弹性滚动 */
+  overscroll-behavior: none;
+  /* 删除或注释这行：touch-action: manipulation; */ 
+  /* 移除后，子元素触屏正常 */
+  /* 防止平滑滚动引起轻微跳动 */
+  scroll-behavior: auto !important;
+}
+
+/* 彻底移除所有点击高亮、焦点环、阴影（移动端 + 桌面） */
+*, *::before, *::after {
+  -webkit-tap-highlight-color: transparent !important;
+  tap-highlight-color: transparent !important;
+  outline: none !important;
+  /* box-shadow: none !important;  // 注释这行，让按钮阴影正常反馈 */
+}
+
+/* 聚焦和激活状态保险 */
+*:focus,
+*:focus-visible,
+*:active,
+button:focus,
+button:active,
+input:focus,
+input:active,
+a:focus,
+a:active {
+  outline: none !important;
+  /* box-shadow: none !important;  // 注释，让 hover/active 有反馈 */
+}
+
+/* 链接颜色和下划线彻底控制 */
+a,
+a:link,
+a:visited,
+a:hover,
+a:active,
+a:focus {
+  color: inherit !important;
+  text-decoration: none !important;
+}
+
+/* 额外针对 hover 组和 visited 的保险 */
+.group:hover a,
+a:visited,
+a:hover {
+  color: inherit !important;
+}
+
+/* 全局保险（只控制颜色，不控制背景） */
+* a,
+* a:hover,
+* a:visited,
+* a:focus,
+* a:active {
+  color: currentColor !important;
+}
+
+/* 输入框额外防系统样式（iOS/Android） */
+input, textarea, select, button {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  border-radius: 0 !important;
+}
+
+/* 防止表单提交或聚焦时页面跳到顶部 */
+form {
+  display: block;
+}
+
+/* Tawk.to 保险规则（保留） */
+.tawk-chat-panel,
+.tawk-widget,
+iframe[src*="tawk.to"],
+.tawk-overlay,
+.tawk-branding {
+  pointer-events: none !important;
+}
+
+.tawk-button,
+.tawk-min-chat-icon,
+.tawk-chat-container {
+  pointer-events: auto !important;
+}
+
+/* 新增：为轮播容器强制允许水平触屏滑动（保险） */
+#ig-carousel {
+  touch-action: pan-x pinch-zoom !important;
+}

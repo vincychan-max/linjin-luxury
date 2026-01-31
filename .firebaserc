@@ -1,0 +1,5 @@
+{
+  "projects": {
+    "default": "your-project-id"  // 替换成您的 Firebase 项目 ID（控制台 URL 或项目设置里看）
+  }
+}
