@@ -544,7 +544,7 @@ export default function CartPage() {
                   value={coupon} 
                   onChange={e => setCoupon(e.target.value)} 
                   disabled={!!validDiscount}
-                  className="w-full border-b-2 border-gray-300 py-4 text-xl md:text-2xl focus:border-black outline-none transition text-black placeholder:text-gray-500 disabled:opacity-50" 
+                  classBTC className="w-full border-b-2 border-gray-300 py-4 text-xl md:text-2xl focus:border-black outline-none transition text-black placeholder:text-gray-500 disabled:opacity-50" 
                 />
                 {validDiscount && (
                   <button 
@@ -616,7 +616,7 @@ export default function CartPage() {
 
                   if (total <= 0) {
                     toast.error('Invalid order amount');
-                    return;
+                    throw new Error('Invalid order amount');  // 修复类型错误：抛出错误而不是 return undefined
                   }
 
                   return actions.order.create({
@@ -625,18 +625,9 @@ export default function CartPage() {
                         value: total.toFixed(2),
                         currency_code: 'USD',
                         breakdown: {
-                          item_total: {
-                            value: subtotal.toFixed(2),
-                            currency_code: 'USD'
-                          },
-                          shipping: {
-                            value: shipping.toFixed(2),
-                            currency_code: 'USD'
-                          },
-                          tax_total: {
-                            value: tax.toFixed(2),
-                            currency_code: 'USD'
-                          }
+                          item_total: { value: subtotal.toFixed(2), currency_code: 'USD' },
+                          shipping: { value: shipping.toFixed(2), currency_code: 'USD' },
+                          tax_total: { value: tax.toFixed(2), currency_code: 'USD' },
                         }
                       },
                       description: 'Linjin Luxury Premium Order'
