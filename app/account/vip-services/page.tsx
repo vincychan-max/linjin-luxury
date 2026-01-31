@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
@@ -129,7 +128,7 @@ export default function VIPServicesPage() {
           <div className="bg-gradient-to-br from-black via-gray-900 to-black text-white p-16 md:p-24 rounded-3xl shadow-2xl text-center">
             <h1 className="text-5xl md:text-7xl uppercase tracking-widest mb-12">Your VIP Status</h1>
             
-            <div className="text-9xl mb-8">{levelIcon[vipLevel as keyof typeof levelIcon] ?? '默认图标'}</div>
+            <div className="text-9xl mb-8">{levelIcon[vipLevel as keyof typeof levelIcon] ?? '⭐'}</div>
             <p className="text-5xl md:text-6xl uppercase tracking-widest mb-8">{vipLevel}</p>
             
             <p className="text-2xl md:text-3xl opacity-90 mb-12">
@@ -152,7 +151,7 @@ export default function VIPServicesPage() {
 
             {/* 权益列表 - 极简高端 */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto text-left">
-              {(vip.recLevel in vipBenefits ? vipBenefits[vipLevel as keyof typeof vipBenefits] : []).map((benefit, i) => (
+              {vipBenefits[vipLevel as keyof typeof vipBenefits].map((benefit, i) => (
                 <p key={i} className="text-lg md:text-xl opacity-90 flex items-center gap-4">
                   <span className="text-2xl">✓</span> {benefit}
                 </p>
