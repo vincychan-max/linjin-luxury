@@ -6,10 +6,10 @@ const prisma = new PrismaClient();
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession();
-  if (!session?.user) return Response.json({ results: [] });
+  if (!session?.user?.email) return Response.json({ results: [] });
 
   const wishlist = await prisma.wishlist.findMany({
-    where: { userId: session.user.id as string },
+    where: { userId: session.user.email },
     include: { product: true },
   });
 
@@ -20,13 +20,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession();
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  if (!session?.user?.email) return new Response('Unauthorized', { status: 401 });
 
   const { productId } = await request.json();
 
   await prisma.wishlist.create({
     data: {
-      userId: session.user.id as string,
+      userId: session.user.email,
       productId,
     },
   });
@@ -36,13 +36,13 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   const session = await getServerSession();
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  if (!session?.user?.email) return new Response('Unauthorized', { status: 401 });
 
   const { productId } = await request.json();
 
   await prisma.wishlist.deleteMany({
     where: {
-      userId: session.user.id as string,
+      userId: session.user.email,
       productId,
     },
   });

@@ -15,7 +15,7 @@ model User {
   image         String?
   accounts      Account[]
   sessions      Session[]
-  wishlist      Wishlist[]  // 加这行：User 有多个 wishlist
+  wishlist      Wishlist[]  // 加这行：用户有多个心愿单
 }
 
 model Account {
@@ -53,19 +53,16 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// 新加 Product model（基本版，根据你的产品字段调整）
 model Product {
   id          String    @id @default(cuid())
   name        String
   price       Float
   image       String?
   description String?
-  // 加你的其他字段，比如 category String?, stock Int? 等
 
-  wishlist    Wishlist[]  // Product 被多个 wishlist 引用
+  wishlist    Wishlist[]
 }
 
-// 新加 Wishlist model（修复关系）
 model Wishlist {
   id        String   @id @default(cuid())
   userId    String
