@@ -1,42 +1,68 @@
-'use client'
+'use client';
 
-import { supabase } from '../../lib/supabase'  // 你的相对路径（根据之前调整）
-import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react';
+import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, User, sendSignInLinkToEmail } from "firebase/auth";
+import { auth } from '@/lib/firebase';  // 你的 Firebase 初始化文件（确保导出了 auth = getAuth(app)）
 
 export default function AuthButtons() {
-  const [user, setUser] = useState<any>(null)
-  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [user, setUser] = useState<User | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null))
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-    })
+    return () => unsubscribe();
+  }, []);
 
-    return () => listener.subscription.unsubscribe()
-  }, [])
-
-  const signInWithGoogle = () => supabase.auth.signInWithOAuth({ provider: 'google' })
-  const signInWithEmail = async () => {
-    const email = prompt('请输入邮箱接收 magic link')
-    if (email) {
-      const { error } = await supabase.auth.signInWithOtp({ email })
-      if (error) alert('发送失败: ' + error.message)
-      else alert('Magic link 已发送到邮箱，请检查！')
+  const signInWithGoogle = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+      setDropdownOpen(false);
+    } catch (error) {
+      console.error('Google sign in error:', error);
+      alert('Google 登录失败，请重试');
     }
-  }
-  const signOut = () => supabase.auth.signOut()
+  };
+
+  const signInWithEmail = async () => {
+    const email = prompt('请输入邮箱接收登录链接');
+    if (!email) return;
+
+    try {
+      const actionCodeSettings = {
+        url: window.location.origin + '/auth/finish-signin',  // 需要创建一个 finish-signin 页面处理链接（或用 /）
+        handleCodeInApp: true,
+      };
+      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+      window.localStorage.setItem('emailForSignIn', email);  // 保存邮箱用于确认
+      alert('登录链接已发送到邮箱，请检查！');
+      setDropdownOpen(false);
+    } catch (error) {
+      console.error('Email sign in error:', error);
+      alert('发送失败: ' + (error as Error).message);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
+  };
 
   if (user) {
     return (
       <div className="flex items-center gap-4 text-white opacity-80">
-        <span className="text-base">Hi, {user.email || user.user_metadata?.full_name || 'My Account'}</span>
-        <button onClick={signOut} className="text-base hover:opacity-100 transition">
+        <span className="text-base">Hi, {user.displayName || user.email || 'My Account'}</span>
+        <button onClick={handleSignOut} className="text-base hover:opacity-100 transition">
           Logout
         </button>
       </div>
-    )
+    );
   }
 
   return (
@@ -57,8 +83,7 @@ export default function AuthButtons() {
             <div className="space-y-4">
               <button
                 onClick={() => {
-                  signInWithGoogle()
-                  setDropdownOpen(false)
+                  signInWithGoogle();
                 }}
                 className="block w-full py-3 hover:bg-yellow-400/10 transition rounded"
               >
@@ -66,8 +91,7 @@ export default function AuthButtons() {
               </button>
               <button
                 onClick={() => {
-                  signInWithEmail()
-                  setDropdownOpen(false)
+                  signInWithEmail();
                 }}
                 className="block w-full py-3 hover:bg-yellow-400/10 transition rounded"
               >
@@ -83,5 +107,5 @@ export default function AuthButtons() {
         <div className="fixed inset-0 z-40" onClick={() => setDropdownOpen(false)} />
       )}
     </div>
-  )
+  );
 }
