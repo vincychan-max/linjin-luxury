@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import InstagramCarousel from './components/InstagramCarousel';
-import { adminDb } from '../lib/firebaseAdmin'; // 调整路径如果 lib 在不同位置
+import { adminDb } from '../lib/firebaseAdmin'; // 确认路径正确（通常是 ../lib/firebaseAdmin）
 
 type Product = {
   id: string;
@@ -14,8 +14,7 @@ type Product = {
   isLimited?: boolean;
 };
 
-// ISR：每 3600 秒（1 小时）重新验证数据（构建时生成静态页面 + 定期刷新）
-export const revalidate = 3600;
+export const revalidate = 3600; // 每小时刷新一次缓存
 
 export const metadata: Metadata = {
   title: 'Linjin Luxury | Authentic New Premium Handbags in Los Angeles',
@@ -62,20 +61,27 @@ export default async function HomePage() {
     const mapProduct = (doc: any): Product => {
       const data = doc.data();
       let displayImage = '/images/placeholder.jpg';
-      if (data.mainImage) {
+
+      if (data.mainImage && data.mainImage !== '') {
         displayImage = data.mainImage;
-      } else if (data.colorImages) {
-        const firstColor = Object.values(data.colorImages)[0];
-        if (Array.isArray(firstColor) && firstColor.length > 0) {
-          displayImage = firstColor[0];
+      } else if (data.colorImages && typeof data.colorImages === 'object') {
+        const colors = Object.values(data.colorImages);
+        for (const colorArray of colors) {
+          if (Array.isArray(colorArray) && colorArray.length > 0 && typeof colorArray[0] === 'string') {
+            displayImage = colorArray[0];
+            break;
+          }
         }
+      } else if (data.images && Array.isArray(data.images) && data.images.length > 0) {
+        displayImage = data.images[0];
       }
+
       return {
         id: doc.id,
         name: data.name || 'Untitled',
         price: Number(data.price) || 0,
         images: [displayImage],
-        code: data.code,
+        code: data.code || '',
         created_at: data.created_at,
         isLimited: data.isLimited || false,
       };
@@ -88,7 +94,7 @@ export default async function HomePage() {
     );
   } catch (error) {
     console.error('Error fetching curated products:', error);
-    // fallback placeholder 数据（防止页面崩溃）
+    // fallback placeholder 数据
     newArrivals = [];
     limitedProducts = [];
     uniqueProducts = [];
@@ -114,7 +120,6 @@ export default async function HomePage() {
           }),
         }}
       />
-
       {/* WebSite Schema */}
       <script
         type="application/ld+json"
@@ -132,7 +137,6 @@ export default async function HomePage() {
           }),
         }}
       />
-
       {/* Organization Schema */}
       <script
         type="application/ld+json"
@@ -162,7 +166,6 @@ export default async function HomePage() {
           }),
         }}
       />
-
       {/* CollectionPage Schema */}
       <script
         type="application/ld+json"
@@ -194,7 +197,6 @@ export default async function HomePage() {
           }),
         }}
       />
-
       {/* Hero Section */}
       <section className="relative h-screen min-h-[600px] flex items-center justify-center overflow-hidden">
         <Image
@@ -230,7 +232,6 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
       {/* Shop by Category */}
       <section className="max-w-7xl mx-auto px-6 py-32">
         <div className="text-center mb-20">
@@ -241,7 +242,6 @@ export default async function HomePage() {
             Curated selections from our Los Angeles collection
           </p>
         </div>
-
         <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
           <Link href="/collection?category=women" className="group block">
             <div className="relative aspect-[4/5] overflow-hidden mb-8 bg-gray-100">
@@ -260,7 +260,6 @@ export default async function HomePage() {
               WOMEN
             </h3>
           </Link>
-
           <Link href="/collection?category=Women's Small Leather Goods" className="group block">
             <div className="relative aspect-[4/5] overflow-hidden mb-8 bg-gray-100">
               <Image
@@ -278,7 +277,6 @@ export default async function HomePage() {
               Women's Small Leather Goods
             </h3>
           </Link>
-
           <Link href="/collection?category=Women's Shoes" className="group block">
             <div className="relative aspect-[4/5] overflow-hidden mb-8 bg-gray-100">
               <Image
@@ -296,7 +294,6 @@ export default async function HomePage() {
               Women's Shoes
             </h3>
           </Link>
-
           <Link href="/collection?category=Beauty" className="group block">
             <div className="relative aspect-[4/5] overflow-hidden mb-8 bg-gray-100">
               <Image
@@ -314,7 +311,6 @@ export default async function HomePage() {
               Beauty
             </h3>
           </Link>
-
           <Link href="/collection?category=men" className="group block">
             <div className="relative aspect-[4/5] overflow-hidden mb-8 bg-gray-100">
               <Image
@@ -332,7 +328,6 @@ export default async function HomePage() {
               men
             </h3>
           </Link>
-
           <Link href="/collection?category=Men's Small Leather Goods" className="group block">
             <div className="relative aspect-[4/5] overflow-hidden mb-8 bg-gray-100">
               <Image
@@ -350,7 +345,6 @@ export default async function HomePage() {
               Men's Small Leather Goods
             </h3>
           </Link>
-
           <Link href="/collection?category=Men's Shoes" className="group block">
             <div className="relative aspect-[4/5] overflow-hidden mb-8 bg-gray-100">
               <Image
@@ -368,7 +362,6 @@ export default async function HomePage() {
               Men's Shoes
             </h3>
           </Link>
-
           <Link href="/collection?category=accessories" className="group block">
             <div className="relative aspect-[4/5] overflow-hidden mb-8 bg-gray-100">
               <Image
@@ -388,7 +381,6 @@ export default async function HomePage() {
           </Link>
         </div>
       </section>
-
       {/* New Arrivals */}
       <section id="new-arrivals" className="max-w-7xl mx-auto px-6 py-32 bg-white">
         <div className="text-center mb-16">
@@ -399,7 +391,6 @@ export default async function HomePage() {
             Fresh from Los Angeles — the latest pristine arrivals
           </p>
         </div>
-
         <div className="grid grid-cols-2 md:grid-cols-4 gap-12 lg:gap-20 justify-items-center">
           {newArrivals.length > 0 ? (
             newArrivals.map((product) => (
@@ -415,7 +406,6 @@ export default async function HomePage() {
                     className="object-cover group-hover:scale-105 transition-transform duration-700"
                   />
                 </div>
-
                 <h4 className="mt-10 text-2xl md:text-3xl font-semibold tracking-widest text-center">
                   {toTitleCase(product.name)}
                 </h4>
@@ -438,7 +428,6 @@ export default async function HomePage() {
             ))
           )}
         </div>
-
         {newArrivals.length > 0 && (
           <div className="text-center mt-24">
             <Link
@@ -450,7 +439,6 @@ export default async function HomePage() {
           </div>
         )}
       </section>
-
       {/* Limited Edition */}
       <section className="max-w-7xl mx-auto px-6 py-32 bg-gray-50">
         <div className="text-center mb-16">
@@ -461,7 +449,6 @@ export default async function HomePage() {
             Rare treasures — privately curated exclusives
           </p>
         </div>
-
         <div className="grid grid-cols-2 md:grid-cols-4 gap-12 lg:gap-20 justify-items-center">
           {limitedProducts.length > 0 ? (
             limitedProducts.map((product) => (
@@ -481,7 +468,6 @@ export default async function HomePage() {
                     className="object-cover group-hover:scale-105 transition-transform duration-700"
                   />
                 </div>
-
                 <h4 className="mt-10 text-xl md:text-2xl font-semibold tracking-widest text-center">
                   {toTitleCase(product.name)}
                 </h4>
@@ -504,7 +490,6 @@ export default async function HomePage() {
             ))
           )}
         </div>
-
         {limitedProducts.length > 0 && (
           <div className="text-center mt-24">
             <Link
@@ -516,7 +501,6 @@ export default async function HomePage() {
           </div>
         )}
       </section>
-
       {/* Testimonials */}
       <section className="bg-white py-32">
         <div className="max-w-7xl mx-auto px-6 text-center">
@@ -545,7 +529,6 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
       {/* Instagram Feed */}
       <section className="max-w-7xl mx-auto px-6 py-24 bg-gray-50">
         <div className="text-center mb-16">
@@ -564,10 +547,8 @@ export default async function HomePage() {
             Follow on Instagram →
           </Link>
         </div>
-
         <InstagramCarousel />
       </section>
-
       {/* About + Trust Signals */}
       <section className="bg-white py-24">
         <div className="max-w-4xl mx-auto px-6 text-center">
@@ -594,14 +575,12 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
       {/* Our Commitments + FAQ */}
       <section className="py-24 bg-gray-50">
         <div className="max-w-7xl mx-auto px-6">
           <h2 className="text-4xl md:text-6xl font-bold tracking-widest uppercase text-center mb-16">
             Our Commitments
           </h2>
-
           <div className="grid grid-cols-1 md:grid-cols-3 gap-16">
             <details className="group text-center">
               <summary className="cursor-pointer list-none">
@@ -618,7 +597,6 @@ export default async function HomePage() {
                   Learn More →
                 </Link>
               </summary>
-
               <div className="mt-10 space-y-6 text-left max-w-sm mx-auto">
                 <div>
                   <p className="font-semibold mb-2">How do you verify authenticity?</p>
@@ -634,7 +612,6 @@ export default async function HomePage() {
                 </div>
               </div>
             </details>
-
             <details className="group text-center">
               <summary className="cursor-pointer list-none">
                 <div className="mb-10 text-8xl opacity-70 group-open:opacity-100 transition-opacity">
@@ -650,7 +627,6 @@ export default async function HomePage() {
                   Learn More →
                 </Link>
               </summary>
-
               <div className="mt-10 space-y-6 text-left max-w-sm mx-auto">
                 <div>
                   <p className="font-semibold mb-2">What does "pristine like-new" mean?</p>
@@ -666,7 +642,6 @@ export default async function HomePage() {
                 </div>
               </div>
             </details>
-
             <details className="group text-center">
               <summary className="cursor-pointer list-none">
                 <div className="mb-10 text-8xl opacity-70 group-open:opacity-100 transition-opacity">
@@ -682,7 +657,6 @@ export default async function HomePage() {
                   Learn More →
                 </Link>
               </summary>
-
               <div className="mt-10 space-y-6 text-left max-w-sm mx-auto">
                 <div>
                   <p className="font-semibold mb-2">How long does shipping take?</p>
@@ -703,7 +677,6 @@ export default async function HomePage() {
               </div>
             </details>
           </div>
-
           <div className="text-center mt-20">
             <Link href="/faq" className="text-lg uppercase tracking-widest border-b-2 border-black pb-1 hover:border-gray-600 transition">
               More Questions? View Full FAQ →
