@@ -1,6 +1,14 @@
 'use client';
+
 import { useState } from 'react';
 import Image from 'next/image';
+
+// Tawk.to 类型声明（修复 TypeScript window.Tawk_API 类型错误）
+declare global {
+  interface Window {
+    Tawk_API?: any;
+  }
+}
 
 export default function ContactPage() {
   const [isWhatsAppDrawerOpen, setIsWhatsAppDrawerOpen] = useState(false);
