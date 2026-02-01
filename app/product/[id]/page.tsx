@@ -59,12 +59,13 @@ export default async function ProductPage({ params }: Props) {
 
   const recommendedProducts = recommendedSnapshot.docs.map((doc) => {
     const data = doc.data();
+    const colorImages = data.colorImages as Record<string, string[]> | undefined;
     return {
       id: doc.id,
       name: data.name || data.code || 'Unnamed Product',
       code: data.code || '',
       price: data.price || 0,
-      mainImage: data.mainImage || (data.colorImages ? Object.values(data.colorImages)[0]?.[0] || '' : ''),
+      mainImage: data.mainImage || (colorImages ? Object.values(colorImages)[0]?.[0] || '' : ''),
       createdAt: data.createdAt?.toDate().toISOString() || null,
     };
   });

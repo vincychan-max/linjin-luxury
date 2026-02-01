@@ -26,9 +26,9 @@ export default function ProductInfo({ product }: ProductInfoProps) {
               <div>
                 <span className="uppercase tracking-widest">Dimensions:</span>
                 <ul className="ml-8 mt-2 space-y-1">
-                  {Object.entries(product.dimensions).map(([key, value]) => (
+                  {Object.entries(product.dimensions as Record<string, unknown>).map(([key, value]) => (
                     <li key={key}>
-                      {key.charAt(0).toUpperCase() + key.slice(1)}: {value}
+                      {key.charAt(0).toUpperCase() + key.slice(1)}: {String(value)}
                     </li>
                   ))}
                 </ul>

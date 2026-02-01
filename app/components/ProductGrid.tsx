@@ -79,7 +79,10 @@ export default function ProductGrid({ initialProducts, initialLastCreatedAt, cat
   return (
     <div className="max-w-7xl mx-auto px-6 pb-32">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-12">
-        {products.map((product, index) => (
+        {products.map((product, index) => {
+          const priceValue = typeof product.price === 'number' ? product.price : Number(product.price);
+          const displayPrice = Number.isFinite(priceValue) ? priceValue : 0;
+          return (
           <div
             key={product.id}
             ref={index === products.length - 1 ? lastProductRef : null}
@@ -98,10 +101,11 @@ export default function ProductGrid({ initialProducts, initialLastCreatedAt, cat
                 />
               </div>
               <h3 className="text-2xl uppercase tracking-widest">{product.name}</h3>
-              <p className="text-3xl mt-4">${product.price.toFixed(2)}</p>
+              <p className="text-3xl mt-4">${displayPrice.toFixed(2)}</p>
             </Link>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {loading && (
