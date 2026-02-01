@@ -620,7 +620,7 @@ export default function CartPage() {
                   }
 
                   return actions.order.create({
-                    intent: "CAPTURE",  // 修复类型错误：加 intent
+                    intent: "CAPTURE",
                     purchase_units: [{
                       amount: {
                         value: total.toFixed(2),
@@ -637,6 +637,10 @@ export default function CartPage() {
                 }}
                 onApprove={async (data, actions) => {
                   try {
+                    if (!actions.order) {
+                      toast.error('PayPal order error');
+                      return;
+                    }
                     const order = await actions.order.capture();
                     toast.success('Payment successful! Order confirmed.');
 
