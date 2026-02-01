@@ -3,14 +3,14 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { getAuth } from "firebase/auth";
-import { db } from '@/lib/firebase';  // 统一使用别名路径（推荐，更可靠）
+import { db } from '@/lib/firebase';
 import { 
   collection, 
   doc,
   setDoc,
   getDoc,
   updateDoc,
-  deleteDoc,  // 新增导入（修复 deleteDoc 未定义错误）
+  deleteDoc,
   increment
 } from "firebase/firestore";
 
@@ -36,7 +36,7 @@ export default function ProductClient({
 
   const auth = getAuth();
 
-  // 收藏状态同步（保持不变）
+  // 收藏状态同步
   useEffect(() => {
     const loadFavoriteStatus = async () => {
       const currentUser = auth.currentUser;
@@ -66,7 +66,7 @@ export default function ProductClient({
     };
   }, [product.id, auth.currentUser]);
 
-  // Add to Bag 函数 - 彻底修复重复问题（固定 docId + getDoc 检查）
+  // Add to Bag 函数 - 彻底修复重复问题
   const addToBag = async () => {
     if (!selectedColor) {
       toast.error('Please select a color');
@@ -76,7 +76,6 @@ export default function ProductClient({
     const currentUser = auth.currentUser;
     const fallbackImage = product.images?.[0] || '/images/placeholder.jpg';
 
-    // 标准化 size（避免 'One Size' vs 'OneSize' 不匹配）
     const normalizedSize = selectedSize || 'OneSize';
 
     const cartItem = {
@@ -91,21 +90,18 @@ export default function ProductClient({
 
     if (currentUser) {
       try {
-        // 固定 docId：user_uid + product_id + color + size
         const docId = `${currentUser.uid}_${product.id}_${selectedColor}_${normalizedSize}`;
         const cartRef = doc(db, "cart_items", docId);
 
         const snap = await getDoc(cartRef);
 
         if (snap.exists()) {
-          // 已存在 → 只 +1 数量
           await updateDoc(cartRef, {
             quantity: increment(1),
             updated_at: new Date(),
           });
           toast.success(`Updated quantity: ${product.name} (${selectedColor})`);
         } else {
-          // 不存在 → 新建
           await setDoc(cartRef, {
             user_id: currentUser.uid,
             product_id: product.id,
@@ -119,7 +115,6 @@ export default function ProductClient({
         toast.error('Failed to add to bag. Please try again.');
       }
     } else {
-      // 未登录：本地存储（也去重）
       let cart = JSON.parse(localStorage.getItem('cart') || '[]');
       const existingIndex = cart.findIndex((item: any) => 
         item.id === cartItem.id && 
@@ -140,7 +135,7 @@ export default function ProductClient({
     }
   };
 
-  // Toggle Favorite 函数（保持不变，已使用 deleteDoc）
+  // Toggle Favorite 函数
   const toggleFavorite = async () => {
     const newFavorited = !isFavorited;
     setIsFavorited(newFavorited);
@@ -193,14 +188,14 @@ export default function ProductClient({
     }
   };
 
-  // 价格和库存计算（已修复：删除 / 100，直接用美元金额）
+  // 价格和库存计算
   const formattedPrice = product.price
     ? new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
-      }).format(product.price)  // ← 已删除 / 100
+      }).format(product.price)
     : 'Price on request';
 
   const isOutOfStock = product.stock === 0 || product.stock == null;
@@ -211,10 +206,10 @@ export default function ProductClient({
       : 'In Stock';
 
   const stockClass = isOutOfStock
-    ? 'text-gray-600 italic'               // 售罄：灰色 + 斜体（高端低调，不用红色）
+    ? 'text-gray-600 italic'
     : product.stock < 5
-      ? 'text-orange-600 font-semibold'     // 低库存：橙色催单
-      : 'text-gray-600';                     // 有货：灰色（或可隐藏）
+      ? 'text-orange-600 font-semibold'
+      : 'text-gray-600';
 
   return (
     <div className="min-h-screen bg-white">
@@ -252,12 +247,10 @@ export default function ProductClient({
                 </p>
               )}
 
-              {/* 价格：已修复 + 优化为更高端字体 */}
               <p className="text-5xl md:text-7xl font-thin tracking-widest">
                 {formattedPrice}
               </p>
 
-              {/* 库存：字体缩小，售罄用灰色斜体 */}
               <p className={`text-xl md:text-2xl ${stockClass}`}>
                 {stockText}
               </p>
