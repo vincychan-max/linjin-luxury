@@ -1,12 +1,12 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { db } from '@/lib/firebase'; // 路径根据你的项目调整
 import { collection, getDocs } from "firebase/firestore";
 
-export default function SearchPage() {
+function SearchResultsContent() {
   const searchParams = useSearchParams();
   const query = searchParams.get('q')?.trim() || '';
 
@@ -106,5 +106,19 @@ export default function SearchPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-white flex items-center justify-center">
+          <p className="text-4xl uppercase tracking-wide">Searching...</p>
+        </div>
+      }
+    >
+      <SearchResultsContent />
+    </Suspense>
   );
 }
