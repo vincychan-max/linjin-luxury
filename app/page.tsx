@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import InstagramCarousel from './components/InstagramCarousel';
-import { adminDb } from '../lib/firebaseAdmin'; // 确认路径正确（通常是 ../lib/firebaseAdmin）
+import { adminDb } from '../lib/firebaseAdmin'; // 路径根据你的 lib 位置调整
 
 type Product = {
   id: string;
@@ -14,7 +14,7 @@ type Product = {
   isLimited?: boolean;
 };
 
-export const revalidate = 3600; // 每小时刷新一次缓存
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: 'Linjin Luxury | Authentic New Premium Handbags in Los Angeles',
@@ -94,7 +94,6 @@ export default async function HomePage() {
     );
   } catch (error) {
     console.error('Error fetching curated products:', error);
-    // fallback placeholder 数据
     newArrivals = [];
     limitedProducts = [];
     uniqueProducts = [];
