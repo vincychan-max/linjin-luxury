@@ -264,7 +264,7 @@ export default function FaqClient({ faqData }: FaqClientProps) {
               return (
                 <details
                   key={index}
-                  open={sectionExpanded || (debouncedTerm !== '' && isMatch)}  // 修复类型错误：确保返回 boolean
+                  open={sectionExpanded || Boolean(debouncedTerm && isMatch)}  // 修复类型错误：用 Boolean 强制返回 boolean
                   ref={detailsRef}
                 >
                   <summary>{highlightText(item.question || '')}</summary>
