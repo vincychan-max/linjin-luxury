@@ -1,3 +1,4 @@
+// FORCE DEPLOY TEST: 2026-02-01 08:00 AM - remove fallback temporarily
 import { adminDb } from '@/lib/firebaseAdmin';
 import { NextResponse } from 'next/server';
 
@@ -45,40 +46,31 @@ export async function GET() {
 
     newArrivals = newSnap.docs.map(mapProduct);
     limitedProducts = limitedSnap.docs.map(mapProduct);
+
+    // 加 log 看真实数量
+    console.log('REAL New Arrivals count from Firestore:', newArrivals.length);
+    console.log('REAL Limited Products count from Firestore:', limitedProducts.length);
+    if (newArrivals.length > 0) console.log('New Arrivals sample name:', newArrivals[0].name);
+    if (limitedProducts.length > 0) console.log('Limited sample name:', limitedProducts[0].name);
   } catch (error: unknown) {
-    console.error('API query error:', error);
-
     let errorMessage = 'Unknown error';
-    if (error instanceof Error) {
-      errorMessage = error.message;
-    } else if (typeof error === 'string') {
-      errorMessage = error;
-    }
-
-    return NextResponse.json(
-      { error: 'Query failed', details: errorMessage },
-      { status: 500 }
-    );
+    if (error instanceof Error) errorMessage = error.message;
+    console.error('API query error:', errorMessage);
+    return NextResponse.json({ error: 'Query failed', details: errorMessage }, { status: 500 });
   }
 
-  // fallback 如果 API 也空（双保险）
+  // === 临时移除 fallback ===
+  // 如果想加回测试数据，取消注释下面代码
+  /*
   if (newArrivals.length === 0) {
     console.log('Using fallback test data for newArrivals in API');
-    newArrivals = [
-      { id: 'test1', name: 'Test Premium Bag', price: 2800, images: ['/images/placeholder.jpg'] },
-      { id: 'test2', name: 'Elegant Tote', price: 3500, images: ['/images/placeholder.jpg'] },
-      { id: 'test3', name: 'Classic Clutch', price: 1900, images: ['/images/placeholder.jpg'] },
-      { id: 'test4', name: 'Designer Crossbody', price: 4200, images: ['/images/placeholder.jpg'] },
-    ];
+    newArrivals = [ /* 你的 test data */ ];
   }
-
   if (limitedProducts.length === 0) {
     console.log('Using fallback test data for limitedProducts in API');
-    limitedProducts = [
-      { id: 'limited1', name: 'Limited Edition Hermes', price: 6800, images: ['/images/placeholder.jpg'], isLimited: true },
-      { id: 'limited2', name: 'Rare Chanel Flap', price: 8500, images: ['/images/placeholder.jpg'], isLimited: true },
-    ];
+    limitedProducts = [ /* 你的 test data */ ];
   }
+  */
 
   return NextResponse.json({ newArrivals, limitedProducts });
 }
