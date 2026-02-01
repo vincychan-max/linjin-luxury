@@ -1,10 +1,10 @@
 // app/collection/page.tsx
 import { Metadata } from 'next';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';  // 统一使用别名路径，更标准
+import { db } from '@/lib/firebase';
 
 import Link from 'next/link';
-import ProductGrid from '../components/ProductGrid';  // 确保路径正确
+import ProductGrid from '../components/ProductGrid';
 
 type Product = {
   id: string;
@@ -13,22 +13,27 @@ type Product = {
   images: string[];
   category?: string;
   gender?: string;
-  created_at?: any;  // 用于分页 cursor
+  created_at?: any;
 };
 
 type Props = {
   searchParams: { [key: string]: string | string[] | undefined };
 };
 
-// 强制动态渲染，彻底避免 prerender 阶段的错误（尤其是数据为空或 undefined 时）
+// 强制动态渲染，避免 prerender 错误
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
-  const category = searchParams.category || 'All';
-  const gender = searchParams.gender || '';
-  const titleCategory = category !== 'All' ? category : (gender || 'Full');
-  
+  // 安全处理 searchParams（Next.js 类型可能是 string | string[]）
+  const rawCategory = searchParams.category;
+  const rawGender = searchParams.gender;
+
+  const category = Array.isArray(rawCategory) ? rawCategory[0] : rawCategory;
+  const gender = Array.isArray(rawGender) ? rawGender[0] : rawGender;
+
+  const titleCategory = category && category !== 'All' ? category : (gender || 'Full');
+
   return {
     title: `Linjin Luxury | ${titleCategory} Collection`,
     description: `Explore authentic premium ${titleCategory.toLowerCase()} designer handbags in pristine condition from Linjin Luxury in Los Angeles.`,
@@ -36,8 +41,12 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 }
 
 export default async function CollectionPage({ searchParams }: Props) {
-  const category = searchParams.category as string | undefined;
-  const gender = searchParams.gender as string | undefined;
+  // 同样安全处理 searchParams
+  const rawCategory = searchParams.category;
+  const rawGender = searchParams.gender;
+
+  const category = Array.isArray(rawCategory) ? rawCategory[0] : rawCategory;
+  const gender = Array.isArray(rawGender) ? rawGender[0] : rawGender;
 
   // 初始查询（第一页）
   let q = query(collection(db, 'products'), orderBy('created_at', 'desc'), limit(12));
@@ -67,19 +76,16 @@ export default async function CollectionPage({ searchParams }: Props) {
       };
     });
 
-    // 用于无限滚动 cursor
     if (snapshot.docs.length > 0) {
       initialLastCreatedAt = snapshot.docs[snapshot.docs.length - 1].data().created_at;
     }
   } catch (error) {
     console.error('Collection page initial query error:', error);
-    // 出错时返回空数组，避免 crash
     initialProducts = [];
   }
 
   return (
     <>
-      {/* 标题 + 过滤栏 */}
       <section className="max-w-7xl mx-auto px-6 py-20">
         <div className="text-center mb-12">
           <h1 className="text-5xl md:text-7xl font-bold tracking-widest uppercase mb-6">
@@ -90,7 +96,6 @@ export default async function CollectionPage({ searchParams }: Props) {
           </p>
         </div>
 
-        {/* 简洁过滤栏 */}
         <div className="flex flex-wrap justify-center gap-6 mb-16">
           <Link href="/collection" className="px-8 py-3 border border-black rounded-full hover:bg-black hover:text-white transition">
             All
@@ -101,11 +106,9 @@ export default async function CollectionPage({ searchParams }: Props) {
           <Link href="/collection?category=men" className="px-8 py-3 border border-black rounded-full hover:bg-black hover:text-white transition">
             Men
           </Link>
-          {/* 如需更多过滤，可继续添加 */}
         </div>
       </section>
 
-      {/* 产品网格 - Client Component 处理无限滚动 */}
       <ProductGrid 
         initialProducts={initialProducts}
         initialLastCreatedAt={initialLastCreatedAt}
