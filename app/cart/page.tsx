@@ -544,7 +544,7 @@ export default function CartPage() {
                   value={coupon} 
                   onChange={e => setCoupon(e.target.value)} 
                   disabled={!!validDiscount}
-                  classBTC className="w-full border-b-2 border-gray-300 py-4 text-xl md:text-2xl focus:border-black outline-none transition text-black placeholder:text-gray-500 disabled:opacity-50" 
+                  className="w-full border-b-2 border-gray-300 py-4 text-xl md:text-2xl focus:border-black outline-none transition text-black placeholder:text-gray-500 disabled:opacity-50" 
                 />
                 {validDiscount && (
                   <button 
@@ -616,7 +616,7 @@ export default function CartPage() {
 
                   if (total <= 0) {
                     toast.error('Invalid order amount');
-                    throw new Error('Invalid order amount');  // 修复类型错误：抛出错误而不是 return undefined
+                    throw new Error('Invalid order amount');
                   }
 
                   return actions.order.create({
