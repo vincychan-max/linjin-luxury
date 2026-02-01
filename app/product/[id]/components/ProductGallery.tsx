@@ -2,16 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import Image from 'next/image';
-
-// 修复 TypeScript 对 <model-viewer> 自定义元素的类型错误
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      'model-viewer': any;  // 允许所有属性（简单安全方式）
-    }
-  }
-}
-
+import '@google/model-viewer';
 interface ProductGalleryProps {
   product: any;
   selectedColor: string;
@@ -266,7 +257,7 @@ export default function ProductGallery({ product, selectedColor }: ProductGaller
         </div>
       )}
           
-      {/* Video / AR 模式（无左侧padding） */}
+      {/* Video / AR 模式 */}
       {(mediaMode === 'video' || mediaMode === 'ar') && (
         <div className="w-full h-full">
           {mediaMode === 'video' && hasVideo && (
@@ -281,8 +272,8 @@ export default function ProductGallery({ product, selectedColor }: ProductGaller
             />
           )}
           {mediaMode === 'ar' && hasAR && (
-           {/* @ts-ignore */}
-           <model-viewer
+            {/* @ts-ignore */}  // 忽略类型错误
+            <model-viewer
               src={product.modelGlb}
               ios-src={product.modelUsdz || ''}
               alt={`${product.name} AR view`}
@@ -304,7 +295,7 @@ export default function ProductGallery({ product, selectedColor }: ProductGaller
         </div>
       )}
 
-      {/* 新增：分享按钮（右上角，全模式通用） */}
+      {/* 分享按钮 */}
       <div className="absolute right-4 md:right-8 top-4 md:top-8 z-30">
         <button
           onClick={handleShare}
@@ -321,7 +312,7 @@ export default function ProductGallery({ product, selectedColor }: ProductGaller
         </button>
       </div>
 
-      {/* 移动端图片指示器：计数 + Dots（最高优先） */}
+      {/* 移动端指示器 */}
       {mediaMode === 'photos' && finalImages.length > 1 && (
         <div className="md:hidden absolute left-1/2 -translate-x-1/2 bottom-24 z-20 flex flex-col items-center gap-4 pointer-events-none">
           <div className="bg-white/90 backdrop-blur-md text-black font-bold text-lg px-6 py-3 rounded-full shadow-2xl">
@@ -342,7 +333,7 @@ export default function ProductGallery({ product, selectedColor }: ProductGaller
         </div>
       )}
 
-      {/* 媒体 Tabs（底部居中） */}
+      {/* 媒体 Tabs */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 bg-white/90 backdrop-blur-md px-6 py-3 rounded-full shadow-2xl flex gap-6 uppercase tracking-widest text-sm md:text-base">
         <button
           onClick={() => setMediaMode('photos')}
@@ -371,7 +362,7 @@ export default function ProductGallery({ product, selectedColor }: ProductGaller
         )}
       </div>
 
-      {/* 缩略图：只在桌面端显示左侧垂直，并添加图片计数（放在缩略图区域顶部） */}
+      {/* 缩略图 */}
       {mediaMode === 'photos' && finalImages.length > 1 && (
         <div className="hidden md:flex flex-col gap-3 absolute left-8 top-1/2 -translate-y-1/2 z-20 overflow-y-auto scrollbar-hide max-h-[80vh] py-8">
           <div className="self-center mb-6">
