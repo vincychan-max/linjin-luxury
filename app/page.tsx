@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import InstagramCarousel from './components/InstagramCarousel';
-import { adminDb } from '../lib/firebaseAdmin';
 
 type Product = {
   id: string;
@@ -14,8 +13,8 @@ type Product = {
   isLimited?: boolean;
 };
 
-export const dynamic = 'force-dynamic'; // 强制动态渲染，禁用缓存，确保每次都实时查询
-export const revalidate = 0; // 额外保险，彻底关闭 ISR
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export const metadata: Metadata = {
   title: 'Linjin Luxury | Authentic New Premium Handbags in Los Angeles',
@@ -53,73 +52,25 @@ export default async function HomePage() {
   let limitedProducts: Product[] = [];
   let uniqueProducts: Product[] = [];
 
-  // 分开查询 + 详细调试日志（方便在 Vercel Logs 查看）
-  let newSnap: any = null;
-  let limitedSnap: any = null;
-
   try {
-    newSnap = await adminDb.collection('products').orderBy('created_at', 'desc').limit(8).get();
-    console.log('New Arrivals query success');
-    console.log('New docs count:', newSnap.size);
-    console.log('New docs IDs:', newSnap.docs.map((doc: any) => doc.id));
-  } catch (e) {
-    console.error('New Arrivals query error:', e);
-  }
+    const apiUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.linjinluxury.com'}/api/home-products`;
+    const res = await fetch(apiUrl, {
+      cache: 'no-store',
+      next: { revalidate: 0 },
+    });
 
-  try {
-    limitedSnap = await adminDb
-      .collection('products')
-      .where('isLimited', '==', true)
-      .orderBy('price', 'desc')
-      .limit(8)
-      .get();
-    console.log('Limited Edition query success');
-    console.log('Limited docs count:', limitedSnap.size);
-    console.log('Limited docs IDs:', limitedSnap.docs.map((doc: any) => doc.id));
-  } catch (e) {
-    console.error('Limited Edition query error:', e);
-  }
-
-  const mapProduct = (doc: any): Product => {
-    const data = doc.data();
-    let displayImage = '/images/placeholder.jpg';
-
-    if (data.mainImage && data.mainImage !== '') {
-      displayImage = data.mainImage;
-    } else if (data.colorImages && typeof data.colorImages === 'object') {
-      const colors = Object.values(data.colorImages);
-      for (const colorArray of colors) {
-        if (Array.isArray(colorArray) && colorArray.length > 0 && typeof colorArray[0] === 'string') {
-          displayImage = colorArray[0];
-          break;
-        }
-      }
-    } else if (data.images && Array.isArray(data.images) && data.images.length > 0) {
-      displayImage = data.images[0];
+    if (res.ok) {
+      const data = await res.json();
+      newArrivals = data.newArrivals || [];
+      limitedProducts = data.limitedProducts || [];
+    } else {
+      console.error('API response not ok:', res.status);
     }
-
-    return {
-      id: doc.id,
-      name: data.name || 'Untitled',
-      price: Number(data.price) || 0,
-      images: [displayImage],
-      code: data.code || '',
-      created_at: data.created_at,
-      isLimited: data.isLimited || false,
-    };
-  };
-
-  if (newSnap && newSnap.size > 0) {
-    newArrivals = newSnap.docs.map(mapProduct);
-  }
-  if (limitedSnap && limitedSnap.size > 0) {
-    limitedProducts = limitedSnap.docs.map(mapProduct);
+  } catch (error) {
+    console.error('Fetch home products error:', error);
   }
 
-  console.log('Final newArrivals count:', newArrivals.length);
-  console.log('Final limitedProducts count:', limitedProducts.length);
-
-  // 强制 fallback：真实数据为空时显示测试卡片（避免全灰 skeleton）
+  // 双保险 fallback
   if (newArrivals.length === 0) {
     console.log('Using fallback test data for newArrivals');
     newArrivals = [
@@ -146,7 +97,6 @@ export default async function HomePage() {
 
   return (
     <>
-      {/* Schema JSON-LD */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
