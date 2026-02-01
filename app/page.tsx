@@ -1,9 +1,8 @@
-import { Metadata } from 'next';
-import { collection, query, limit, getDocs, orderBy, where } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import InstagramCarousel from './components/InstagramCarousel';
+import { adminDb } from '../lib/firebaseAdmin'; // 调整路径如果 lib 在不同位置
 
 type Product = {
   id: string;
@@ -14,6 +13,9 @@ type Product = {
   created_at?: any;
   isLimited?: boolean;
 };
+
+// ISR：每 3600 秒（1 小时）重新验证数据（构建时生成静态页面 + 定期刷新）
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: 'Linjin Luxury | Authentic New Premium Handbags in Los Angeles',
@@ -36,29 +38,6 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  const mapProduct = (doc: any): Product => {
-    const data = doc.data();
-    let displayImage = '/images/placeholder.jpg';
-    if (data.mainImage) {
-      displayImage = data.mainImage;
-    } else if (data.colorImages) {
-      const firstColor = Object.values(data.colorImages)[0];
-      if (Array.isArray(firstColor) && firstColor.length > 0) {
-        displayImage = firstColor[0];
-      }
-    }
-    return {
-      id: doc.id,
-      name: data.name || 'Untitled',
-      price: Number(data.price) || 0,
-      images: [displayImage],
-      code: data.code,
-      created_at: data.created_at,
-      isLimited: data.isLimited || false,
-    };
-  };
-
-  // Title Case 函数：每个单词首字母大写，其他小写
   const toTitleCase = (str: string): string => {
     if (!str) return '';
     return str
@@ -76,18 +55,43 @@ export default async function HomePage() {
 
   try {
     const [newSnap, limitedSnap] = await Promise.all([
-      getDocs(query(collection(db, 'products'), orderBy('created_at', 'desc'), limit(4))),
-      getDocs(query(collection(db, 'products'), where('isLimited', '==', true), orderBy('price', 'desc'), limit(4))),
+      adminDb.collection('products').orderBy('created_at', 'desc').limit(4).get(),
+      adminDb.collection('products').where('isLimited', '==', true).orderBy('price', 'desc').limit(4).get(),
     ]);
+
+    const mapProduct = (doc: any): Product => {
+      const data = doc.data();
+      let displayImage = '/images/placeholder.jpg';
+      if (data.mainImage) {
+        displayImage = data.mainImage;
+      } else if (data.colorImages) {
+        const firstColor = Object.values(data.colorImages)[0];
+        if (Array.isArray(firstColor) && firstColor.length > 0) {
+          displayImage = firstColor[0];
+        }
+      }
+      return {
+        id: doc.id,
+        name: data.name || 'Untitled',
+        price: Number(data.price) || 0,
+        images: [displayImage],
+        code: data.code,
+        created_at: data.created_at,
+        isLimited: data.isLimited || false,
+      };
+    };
 
     newArrivals = newSnap.docs.map(mapProduct);
     limitedProducts = limitedSnap.docs.map(mapProduct);
-
     uniqueProducts = Array.from(
       new Map([...newArrivals, ...limitedProducts].map(p => [p.id, p])).values()
     );
   } catch (error) {
     console.error('Error fetching curated products:', error);
+    // fallback placeholder 数据（防止页面崩溃）
+    newArrivals = [];
+    limitedProducts = [];
+    uniqueProducts = [];
   }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.linjinluxury.com';
@@ -202,9 +206,7 @@ export default async function HomePage() {
           blurDataURL={blurDataURL}
           className="object-cover"
         />
-
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-transparent pointer-events-none z-0" />
-
         <div className="relative z-10 text-center text-white px-6">
           <h1 className="text-5xl sm:text-6xl md:text-8xl font-bold tracking-widest uppercase mb-8 drop-shadow-2xl">
             Linjin Luxury
@@ -463,9 +465,9 @@ export default async function HomePage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-12 lg:gap-20 justify-items-center">
           {limitedProducts.length > 0 ? (
             limitedProducts.map((product) => (
-              <Link 
-                key={product.id} 
-                href={product.isLimited ? `/limited/${product.id}` : `/product/${product.id}`} 
+              <Link
+                key={product.id}
+                href={product.isLimited ? `/limited/${product.id}` : `/product/${product.id}`}
                 className="group block max-w-sm w-full"
               >
                 <div className="relative aspect-[3/4] overflow-hidden bg-gray-100 rounded-3xl shadow-2xl">
