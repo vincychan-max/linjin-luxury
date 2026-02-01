@@ -1,9 +1,10 @@
 // app/collection/page.tsx
 import { Metadata } from 'next';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
-import { db } from '../../lib/firebase';  // 调整路径
+import { db } from '@/lib/firebase';  // 统一使用别名路径，更标准
 
-import Link from 'next/link';  // 新增导入（修复 Link is not defined）
+import Link from 'next/link';
+import ProductGrid from '@/components/ProductGrid';  // 新增导入（修复 Cannot find name 'ProductGrid'）
 
 type Product = {
   id: string;
