@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import InstagramCarousel from './components/InstagramCarousel';
-import { adminDb } from '../lib/firebaseAdmin'; // 路径根据你的 lib 位置调整
+import { adminDb } from '../lib/firebaseAdmin';
 
 type Product = {
   id: string;
@@ -14,7 +14,8 @@ type Product = {
   isLimited?: boolean;
 };
 
-export const revalidate = 3600;
+export const dynamic = 'force-dynamic'; // 强制动态渲染，禁用缓存，确保每次都实时查询
+export const revalidate = 0; // 额外保险，彻底关闭 ISR
 
 export const metadata: Metadata = {
   title: 'Linjin Luxury | Authentic New Premium Handbags in Los Angeles',
@@ -52,58 +53,100 @@ export default async function HomePage() {
   let limitedProducts: Product[] = [];
   let uniqueProducts: Product[] = [];
 
+  // 分开查询 + 详细调试日志（方便在 Vercel Logs 查看）
+  let newSnap: any = null;
+  let limitedSnap: any = null;
+
   try {
-    const [newSnap, limitedSnap] = await Promise.all([
-      adminDb.collection('products').orderBy('created_at', 'desc').limit(4).get(),
-      adminDb.collection('products').where('isLimited', '==', true).orderBy('price', 'desc').limit(4).get(),
-    ]);
-
-    const mapProduct = (doc: any): Product => {
-      const data = doc.data();
-      let displayImage = '/images/placeholder.jpg';
-
-      if (data.mainImage && data.mainImage !== '') {
-        displayImage = data.mainImage;
-      } else if (data.colorImages && typeof data.colorImages === 'object') {
-        const colors = Object.values(data.colorImages);
-        for (const colorArray of colors) {
-          if (Array.isArray(colorArray) && colorArray.length > 0 && typeof colorArray[0] === 'string') {
-            displayImage = colorArray[0];
-            break;
-          }
-        }
-      } else if (data.images && Array.isArray(data.images) && data.images.length > 0) {
-        displayImage = data.images[0];
-      }
-
-      return {
-        id: doc.id,
-        name: data.name || 'Untitled',
-        price: Number(data.price) || 0,
-        images: [displayImage],
-        code: data.code || '',
-        created_at: data.created_at,
-        isLimited: data.isLimited || false,
-      };
-    };
-
-    newArrivals = newSnap.docs.map(mapProduct);
-    limitedProducts = limitedSnap.docs.map(mapProduct);
-    uniqueProducts = Array.from(
-      new Map([...newArrivals, ...limitedProducts].map(p => [p.id, p])).values()
-    );
-  } catch (error) {
-    console.error('Error fetching curated products:', error);
-    newArrivals = [];
-    limitedProducts = [];
-    uniqueProducts = [];
+    newSnap = await adminDb.collection('products').orderBy('created_at', 'desc').limit(8).get();
+    console.log('New Arrivals query success');
+    console.log('New docs count:', newSnap.size);
+    console.log('New docs IDs:', newSnap.docs.map((doc: any) => doc.id));
+  } catch (e) {
+    console.error('New Arrivals query error:', e);
   }
+
+  try {
+    limitedSnap = await adminDb
+      .collection('products')
+      .where('isLimited', '==', true)
+      .orderBy('price', 'desc')
+      .limit(8)
+      .get();
+    console.log('Limited Edition query success');
+    console.log('Limited docs count:', limitedSnap.size);
+    console.log('Limited docs IDs:', limitedSnap.docs.map((doc: any) => doc.id));
+  } catch (e) {
+    console.error('Limited Edition query error:', e);
+  }
+
+  const mapProduct = (doc: any): Product => {
+    const data = doc.data();
+    let displayImage = '/images/placeholder.jpg';
+
+    if (data.mainImage && data.mainImage !== '') {
+      displayImage = data.mainImage;
+    } else if (data.colorImages && typeof data.colorImages === 'object') {
+      const colors = Object.values(data.colorImages);
+      for (const colorArray of colors) {
+        if (Array.isArray(colorArray) && colorArray.length > 0 && typeof colorArray[0] === 'string') {
+          displayImage = colorArray[0];
+          break;
+        }
+      }
+    } else if (data.images && Array.isArray(data.images) && data.images.length > 0) {
+      displayImage = data.images[0];
+    }
+
+    return {
+      id: doc.id,
+      name: data.name || 'Untitled',
+      price: Number(data.price) || 0,
+      images: [displayImage],
+      code: data.code || '',
+      created_at: data.created_at,
+      isLimited: data.isLimited || false,
+    };
+  };
+
+  if (newSnap && newSnap.size > 0) {
+    newArrivals = newSnap.docs.map(mapProduct);
+  }
+  if (limitedSnap && limitedSnap.size > 0) {
+    limitedProducts = limitedSnap.docs.map(mapProduct);
+  }
+
+  console.log('Final newArrivals count:', newArrivals.length);
+  console.log('Final limitedProducts count:', limitedProducts.length);
+
+  // 强制 fallback：真实数据为空时显示测试卡片（避免全灰 skeleton）
+  if (newArrivals.length === 0) {
+    console.log('Using fallback test data for newArrivals');
+    newArrivals = [
+      { id: 'test1', name: 'Test Premium Bag', price: 2800, images: ['/images/placeholder.jpg'] },
+      { id: 'test2', name: 'Elegant Tote', price: 3500, images: ['/images/placeholder.jpg'] },
+      { id: 'test3', name: 'Classic Clutch', price: 1900, images: ['/images/placeholder.jpg'] },
+      { id: 'test4', name: 'Designer Crossbody', price: 4200, images: ['/images/placeholder.jpg'] },
+    ];
+  }
+
+  if (limitedProducts.length === 0) {
+    console.log('Using fallback test data for limitedProducts');
+    limitedProducts = [
+      { id: 'limited1', name: 'Limited Edition Hermes', price: 6800, images: ['/images/placeholder.jpg'], isLimited: true },
+      { id: 'limited2', name: 'Rare Chanel Flap', price: 8500, images: ['/images/placeholder.jpg'], isLimited: true },
+    ];
+  }
+
+  uniqueProducts = Array.from(
+    new Map([...newArrivals, ...limitedProducts].map(p => [p.id, p])).values()
+  );
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.linjinluxury.com';
 
   return (
     <>
-      {/* BreadcrumbList Schema */}
+      {/* Schema JSON-LD */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -119,7 +162,6 @@ export default async function HomePage() {
           }),
         }}
       />
-      {/* WebSite Schema */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -136,7 +178,6 @@ export default async function HomePage() {
           }),
         }}
       />
-      {/* Organization Schema */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -165,7 +206,6 @@ export default async function HomePage() {
           }),
         }}
       />
-      {/* CollectionPage Schema */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -196,6 +236,7 @@ export default async function HomePage() {
           }),
         }}
       />
+
       {/* Hero Section */}
       <section className="relative h-screen min-h-[600px] flex items-center justify-center overflow-hidden">
         <Image
@@ -231,6 +272,7 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
       {/* Shop by Category */}
       <section className="max-w-7xl mx-auto px-6 py-32">
         <div className="text-center mb-20">
@@ -380,6 +422,7 @@ export default async function HomePage() {
           </Link>
         </div>
       </section>
+
       {/* New Arrivals */}
       <section id="new-arrivals" className="max-w-7xl mx-auto px-6 py-32 bg-white">
         <div className="text-center mb-16">
@@ -438,6 +481,7 @@ export default async function HomePage() {
           </div>
         )}
       </section>
+
       {/* Limited Edition */}
       <section className="max-w-7xl mx-auto px-6 py-32 bg-gray-50">
         <div className="text-center mb-16">
@@ -500,6 +544,7 @@ export default async function HomePage() {
           </div>
         )}
       </section>
+
       {/* Testimonials */}
       <section className="bg-white py-32">
         <div className="max-w-7xl mx-auto px-6 text-center">
@@ -528,6 +573,7 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
       {/* Instagram Feed */}
       <section className="max-w-7xl mx-auto px-6 py-24 bg-gray-50">
         <div className="text-center mb-16">
@@ -548,6 +594,7 @@ export default async function HomePage() {
         </div>
         <InstagramCarousel />
       </section>
+
       {/* About + Trust Signals */}
       <section className="bg-white py-24">
         <div className="max-w-4xl mx-auto px-6 text-center">
@@ -568,12 +615,13 @@ export default async function HomePage() {
               <p>New or like-new premium handbags</p>
             </div>
             <div>
-              <p className="font-semibold uppercase tracking-wider mb-4">Los Angeles Based</p>
+              <p className="font-semibold uppercase tracking-widest mb-4">Los Angeles Based</p>
               <p>Local expertise and discreet shipping</p>
             </div>
           </div>
         </div>
       </section>
+
       {/* Our Commitments + FAQ */}
       <section className="py-24 bg-gray-50">
         <div className="max-w-7xl mx-auto px-6">
