@@ -3,13 +3,14 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { getAuth } from "firebase/auth";
-import { db } from '../../../lib/firebase';
+import { db } from '@/lib/firebase';  // 统一使用别名路径（推荐，更可靠）
 import { 
   collection, 
   doc,
   setDoc,
   getDoc,
   updateDoc,
+  deleteDoc,  // 新增导入（修复 deleteDoc 未定义错误）
   increment
 } from "firebase/firestore";
 
@@ -139,7 +140,7 @@ export default function ProductClient({
     }
   };
 
-  // Toggle Favorite 函数（保持不变）
+  // Toggle Favorite 函数（保持不变，已使用 deleteDoc）
   const toggleFavorite = async () => {
     const newFavorited = !isFavorited;
     setIsFavorited(newFavorited);
