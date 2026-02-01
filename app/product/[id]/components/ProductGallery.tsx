@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';  // 新增 useMemo
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Image from 'next/image';
 
 // 修复 TypeScript 对 <model-viewer> 自定义元素的类型错误
 declare global {
   namespace JSX {
     interface IntrinsicElements {
-      'model-viewer': any;
+      'model-viewer': any;  // 允许所有属性（简单安全方式）
     }
   }
 }
