@@ -4,7 +4,7 @@ import { collection, query, where, orderBy, limit, getDocs } from 'firebase/fire
 import { db } from '@/lib/firebase';  // 统一使用别名路径，更标准
 
 import Link from 'next/link';
-import ProductGrid from '@/components/ProductGrid';  // 新增导入（修复 Cannot find name 'ProductGrid'）
+import ProductGrid from '../components/ProductGrid';  // 新增导入（修复 Cannot find name 'ProductGrid'）
 
 type Product = {
   id: string;
