@@ -114,7 +114,6 @@ export default function FaqClient({ faqData }: FaqClientProps) {
     <>
       <style jsx global>{`
         /* 所有原有样式保持不变 */
-        /* ...（复制你当前完整样式） */
         body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #222; background-color: #fafafa; }
         .header { background: #fff; padding: 40px 0; text-align: center; border-bottom: 1px solid #eee; }
         .container { max-width: 1100px; margin: 60px auto; padding: 0 20px; }
@@ -142,7 +141,7 @@ export default function FaqClient({ faqData }: FaqClientProps) {
         .categories { display: flex; flex-wrap: wrap; justify-content: center; gap: 40px; margin-bottom: 80px; font-size: 1.1rem; }
         .categories a { color: #222; text-decoration: none; padding: 10px 0; border-bottom: 2px solid transparent; font-weight: 500; }
         .categories a:hover, .categories a.active { border-bottom: 2px solid #222; }
-        .faq Faq-section { margin-bottom: 100px; }
+        .faq-section { margin-bottom: 100px; }
         .faq-section h2 { font-size: 2rem; font-weight: 300; margin-bottom: 20px; text-align: center; letter-spacing: 1px; }
         details { background: #fff; margin-bottom: 20px; border: 1px solid #eee; padding: 25px; border-radius: 4px; overflow: hidden; }
         summary { font-size: 1.3rem; font-weight: 500; list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
@@ -265,7 +264,7 @@ export default function FaqClient({ faqData }: FaqClientProps) {
               return (
                 <details
                   key={index}
-                  open={sectionExpanded || (debouncedTerm && isMatch)}
+                  open={sectionExpanded || (debouncedTerm !== '' && isMatch)}  // 修复类型错误：确保返回 boolean
                   ref={detailsRef}
                 >
                   <summary>{highlightText(item.question || '')}</summary>
