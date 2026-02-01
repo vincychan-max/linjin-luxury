@@ -28,14 +28,10 @@ const nextConfig: NextConfig = {
 
     // 现代格式优先（更快、更小，推荐保留）
     formats: ['image/avif', 'image/webp'],
-
-    // 移除 qualities（Next.js 官方 config 中没有这个选项，会被忽略或引起警告）
-    // 如果需要控制质量，可在 <Image quality={xx} /> 组件里单独设置
   },
 
   // 推荐添加的常见优化配置（对 Vercel 部署友好，无副作用）
   reactStrictMode: true,
-  swcMinify: true,
   poweredByHeader: false,
 };
 
