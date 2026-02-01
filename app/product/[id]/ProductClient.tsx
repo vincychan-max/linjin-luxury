@@ -216,7 +216,6 @@ export default function ProductClient({
       <ProductGallery 
         product={product} 
         selectedColor={selectedColor} 
-        setSelectedColor={setSelectedColor} 
       />
 
       <div className="max-w-7xl mx-auto px-6 py-16 md:py-24">
