@@ -281,7 +281,8 @@ export default function ProductGallery({ product, selectedColor }: ProductGaller
             />
           )}
           {mediaMode === 'ar' && hasAR && (
-            <model-viewer
+           {/* @ts-ignore */}
+           <model-viewer
               src={product.modelGlb}
               ios-src={product.modelUsdz || ''}
               alt={`${product.name} AR view`}
