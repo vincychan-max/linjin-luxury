@@ -620,6 +620,7 @@ export default function CartPage() {
                   }
 
                   return actions.order.create({
+                    intent: "CAPTURE",  // 修复类型错误：加 intent
                     purchase_units: [{
                       amount: {
                         value: total.toFixed(2),
