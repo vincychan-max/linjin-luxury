@@ -1,4 +1,4 @@
-import { db } from '@/lib/firebase'; // 用 client db (firestore)
+import { db } from '@/lib/firebase'; // client-side Firestore (from your firebase config)
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { NextResponse } from 'next/server';
 
@@ -51,24 +51,26 @@ export async function GET() {
     return NextResponse.json({ error: 'Query failed', details: errorMessage }, { status: 500 });
   }
 
-  // 保留 fallback（保险）
+  // 双保险 fallback（真实数据空时显示测试卡片，避免全灰）
   if (newArrivals.length === 0) {
+    console.log('Using fallback test data for newArrivals');
     newArrivals = [
-      { id: 'test1', name: 'Test Premium Bag', price: 2800, images: ['/images/placeholder.jpg'] },
-      { id: 'test2', name: 'Elegant Tote', price: 3500, images: ['/images/placeholder.jpg'] },
+      { id: 'test1', name: 'Premium Leather Tote', price: 2800, images: ['/images/placeholder.jpg'] },
+      { id: 'test2', name: 'Elegant Crossbody', price: 3500, images: ['/images/placeholder.jpg'] },
       { id: 'test3', name: 'Classic Clutch', price: 1900, images: ['/images/placeholder.jpg'] },
-      { id: 'test4', name: 'Designer Crossbody', price: 4200, images: ['/images/placeholder.jpg'] },
+      { id: 'test4', name: 'Designer Shoulder Bag', price: 4200, images: ['/images/placeholder.jpg'] },
     ];
   }
 
   if (limitedProducts.length === 0) {
+    console.log('Using fallback test data for limitedProducts');
     limitedProducts = [
-      { id: 'limited1', name: 'Limited Edition Hermes', price: 6800, images: ['/images/placeholder.jpg'], isLimited: true },
-      { id: 'limited2', name: 'Rare Chanel Flap', price: 8500, images: ['/images/placeholder.jpg'], isLimited: true },
+      { id: 'limited1', name: 'Rare Hermes Edition', price: 6800, images: ['/images/placeholder.jpg'], isLimited: true },
+      { id: 'limited2', name: 'Exclusive Chanel Flap', price: 8500, images: ['/images/placeholder.jpg'], isLimited: true },
     ];
   }
 
   return NextResponse.json({ newArrivals, limitedProducts });
 }
 
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-dynamic'; // 确保实时查询
