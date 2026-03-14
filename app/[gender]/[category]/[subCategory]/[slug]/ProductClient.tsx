@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react'; // 新增 useCallback
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useCart } from '@/lib/cartStore';
 import { supabase } from '@/lib/supabase';
 import { Truck, Phone, Plus } from 'lucide-react';
@@ -14,12 +14,11 @@ import ProductInfo from './components/ProductInfo';
 import ProductOptions from './components/ProductOptions';
 import ProductActions from './components/ProductActions';
 import { ContactModals } from './components/ContactModals';
-// 🚀 引入推荐组件
 import { Recommendations } from './components/Recommendations'; 
 
 interface ProductClientProps {
   product: any;
-  recommendedProducts?: any[]; // 接收推荐列表数据
+  recommendedProducts?: any[]; 
 }
 
 export default function ProductClient({ product, recommendedProducts = [] }: ProductClientProps) {
@@ -28,7 +27,7 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
   const [selectedColor, setSelectedColor] = useState(product?.colors?.[0]?.name || 'Default');
   const [selectedSize, setSelectedSize] = useState(product?.sizes?.[0] || 'One Size');
   const [isAdding, setIsAdding] = useState(false);
-  const [deliveryInfo, setDeliveryInfo] = useState('Arrives in 3-5 business days'); // 新增：GEO 动态运费
+  const [deliveryInfo, setDeliveryInfo] = useState('Arrives in 3-5 business days'); 
   
   const { wishlistIds, toggleWishlist, fetchWishlistIds } = useWishlistStore();
   const [showContactModal, setShowContactModal] = useState(false);
@@ -36,6 +35,7 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
 
   const { addToCart, openCart } = useCart();
 
+  // --- 1. 所有的 useEffect (必须在 return 之前) ---
   useEffect(() => {
     const initData = async () => {
       const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -43,13 +43,12 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
       if (authUser) {
         fetchWishlistIds();
       }
-      // 新增：GEO 示例 - 基于位置调整运费（假设从 API fetch）
-      // 在实际中，用 navigator.geolocation 或服务器 props
-      setDeliveryInfo('Arrives in 1-2 business days (Los Angeles)'); // 示例 GEO
+      setDeliveryInfo('Arrives in 1-2 business days (Los Angeles)'); 
     };
     initData();
   }, [fetchWishlistIds]);
 
+  // --- 2. 所有的 useMemo ---
   const isLiked = useMemo(() => {
     return wishlistIds.includes(product?.id);
   }, [wishlistIds, product?.id]);
@@ -62,13 +61,13 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
     return product?.images || [];
   }, [selectedColor, product]);
 
-  if (!product) return <div className="p-20 text-center uppercase text-xs tracking-[5px]">Loading...</div>;
-
-  const handleToggleFavorite = useCallback(async () => { // 新增 useCallback 优化
+  // --- 3. 所有的 useCallback ---
+  const handleToggleFavorite = useCallback(async () => {
     if (!user) {
       toast.error('Please sign in to favorite items');
       return;
     }
+    if (!product) return; 
     try {
       await toggleWishlist(product.id);
       toast.success(isLiked ? 'Removed from wishlist' : 'Added to wishlist');
@@ -76,9 +75,10 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
     } catch (error: any) {
       toast.error('Operation failed');
     }
-  }, [user, isLiked, product.id, toggleWishlist, router]);
+  }, [user, isLiked, product?.id, toggleWishlist, router]);
 
-  const handleAddToBag = useCallback(async () => { // 新增 useCallback
+  const handleAddToBag = useCallback(async () => {
+    if (!product) return;
     setIsAdding(true);
     try {
       const cartImage = currentImages[0]?.url || product.images?.[0]?.url || '';
@@ -104,7 +104,8 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
     }
   }, [product, selectedColor, selectedSize, currentImages, addToCart, user?.id, openCart]);
 
-  const handleBuyNow = useCallback(async () => { // 新增 useCallback
+  const handleBuyNow = useCallback(async () => {
+    if (!product) return;
     setIsAdding(true);
     try {
       const cartImage = currentImages[0]?.url || product.images?.[0]?.url || '';
@@ -129,10 +130,16 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
     }
   }, [product, selectedColor, selectedSize, currentImages, addToCart, user?.id, router]);
 
+  // --- 4. 安全检查：如果数据没加载完，显示 Loading ---
+  if (!product) {
+    return <div className="p-20 text-center uppercase text-xs tracking-[5px]">Loading...</div>;
+  }
+
+  // --- 5. 渲染页面 (保持原有极简大牌风样式) ---
   return (
     <main className="min-h-screen bg-white flex flex-col w-full">
       {/* 顶部主图区域 */}
-      <section className="w-full min-h-[60vh] lg:h-screen bg-[#F9F9F9] overflow-hidden relative"> {/* 优化：min-h-[60vh] 手机更灵活 */}
+      <section className="w-full min-h-[60vh] lg:h-screen bg-[#F9F9F9] overflow-hidden relative">
         <ProductGallery images={currentImages} key={selectedColor} />
       </section>
 
@@ -171,7 +178,7 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
                 },
                 { 
                   title: 'Our Commitment', 
-                  content: "<p>Sustainability and craftsmanship are the pillars of LINJIN. Every piece is crafted in limited batches to ensure excellence.</p>" 
+                  content: "<p>Sustainability and craftsmanship are the pillars of our brand. Every piece is crafted in limited batches to ensure excellence.</p>" 
                 }
               ].map((item, i) => (
                 <details key={i} className="group border-b border-zinc-200" open={i === 0}>
@@ -208,7 +215,7 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
                   <Truck size={18} strokeWidth={1} className="shrink-0 text-black" />
                   <div>
                     <p className="uppercase tracking-tighter mb-1 font-medium">Shipping</p>
-                    <p>Estimated complimentary Express delivery:<br/><b>{deliveryInfo}</b></p> {/* 新增：GEO 动态运费 */}
+                    <p>Estimated complimentary Express delivery:<br/><b>{deliveryInfo}</b></p>
                   </div>
                 </div>
 
@@ -225,7 +232,7 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
         </div>
       </section>
 
-      {/* 🚀 底部推荐区：放置在内容的最下方 */}
+      {/* 底部推荐区 */}
       <Recommendations recommendedProducts={recommendedProducts} />
 
       {/* 弹窗组件 */}
