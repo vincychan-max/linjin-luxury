@@ -1,93 +1,158 @@
-// lib/cartStore.ts
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type CartItem = {
-  id: string;          // product_id (string 更灵活)
+export interface CartItem {
+  id: string;
+  product_id: string;
   name: string;
-  price: number;       // 改为 number，避免解析错误
+  price: number;
   image: string;
   color: string;
-  size: string;        // 或 'One Size'
+  size: string;
   quantity: number;
-};
+}
 
-type CartStore = {
-  items: CartItem[];
-  addItem: (item: Omit<CartItem, 'quantity'>) => void;
-  updateQuantity: (id: string, color: string, size: string, delta: number) => void; // 支持增减
-  setQuantity: (id: string, color: string, size: string, quantity: number) => void;
-  removeItem: (id: string, color: string, size: string) => void;
-  clearCart: () => void;
+interface CartState {
+  cart: CartItem[];
+  loading: boolean;
+  isOpen: boolean; // 控制购物车侧边栏显示/隐藏
+
+  // UI 方法
+  openCart: () => void;
+  closeCart: () => void;
+
+  // 数据方法
+  fetchCart: (userId: string) => Promise<void>;
+  addToCart: (item: CartItem, userId?: string) => Promise<void>;
+  removeFromCart: (id: string, userId?: string) => Promise<void>;
+  updateQuantity: (id: string, quantity: number, userId?: string) => Promise<void>;
+  syncLocalCartWithServer: (userId: string) => Promise<void>;
+  
+  // 辅助计算
   getTotalPrice: () => number;
   getTotalItems: () => number;
-};
+  clearCart: () => void;
+}
 
-export const useCart = create<CartStore>()(
+export const useCart = create<CartState>()(
   persist(
     (set, get) => ({
-      items: [],
-      addItem: (newItem) =>
-        set((state) => {
-          const existing = state.items.find(
-            (i) =>
-              i.id === newItem.id &&
-              i.color === newItem.color &&
-              i.size === newItem.size
-          );
+      cart: [],
+      loading: false,
+      isOpen: false, // 默认关闭
 
-          if (existing) {
-            return {
-              items: state.items.map((i) =>
-                i.id === newItem.id && i.color === newItem.color && i.size === newItem.size
-                  ? { ...i, quantity: i.quantity + 1 }
-                  : i
-              ),
-            };
+      // 1. UI 控制方法
+      openCart: () => set({ isOpen: true }),
+      closeCart: () => set({ isOpen: false }),
+
+      // 2. 从服务器获取购物车
+      fetchCart: async (userId: string) => {
+        set({ loading: true });
+        try {
+          const res = await fetch(`/api/cart?userId=${userId}`);
+          if (res.ok) {
+            const data = await res.json();
+            set({ cart: data });
           }
+        } catch (error) {
+          console.error('Fetch cart error:', error);
+        } finally {
+          set({ loading: false });
+        }
+      },
 
-          return { items: [...state.items, { ...newItem, quantity: 1 }] };
-        }),
+      // 3. 添加到购物车
+      addToCart: async (item: CartItem, userId?: string) => {
+        const currentCart = get().cart;
+        const existingItem = currentCart.find((i) => i.id === item.id);
+        
+        let newCart;
+        if (existingItem) {
+          newCart = currentCart.map((i) =>
+            i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
+          );
+        } else {
+          newCart = [...currentCart, { ...item, quantity: 1 }];
+        }
+        
+        set({ cart: newCart });
 
-      updateQuantity: (id, color, size, delta) =>
+        // 如果已登录，同步到数据库
+        if (userId) {
+          try {
+            await fetch('/api/cart', {
+              method: 'POST',
+              body: JSON.stringify({ action: 'add', item, userId }),
+            });
+          } catch (error) {
+            console.error('Database sync error:', error);
+          }
+        }
+      },
+
+      // 4. 更新数量
+      updateQuantity: async (id: string, quantity: number, userId?: string) => {
+        if (quantity < 1) return;
+        
         set((state) => ({
-          items: state.items.map((i) =>
-            i.id === id && i.color === color && i.size === size
-              ? { ...i, quantity: Math.max(1, i.quantity + delta) }
-              : i
+          cart: state.cart.map((item) =>
+            item.id === id ? { ...item, quantity } : item
           ),
-        })),
+        }));
 
-      setQuantity: (id, color, size, quantity) =>
+        if (userId) {
+          await fetch('/api/cart', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'update', id, quantity, userId }),
+          });
+        }
+      },
+
+      // 5. 删除商品
+      removeFromCart: async (id: string, userId?: string) => {
         set((state) => ({
-          items: quantity <= 0
-            ? state.items.filter(
-                (i) => !(i.id === id && i.color === color && i.size === size)
-              )
-            : state.items.map((i) =>
-                i.id === id && i.color === color && i.size === size
-                  ? { ...i, quantity }
-                  : i
-              ),
-        })),
+          cart: state.cart.filter((item) => item.id !== id),
+        }));
 
-      removeItem: (id, color, size) =>
-        set((state) => ({
-          items: state.items.filter(
-            (i) => !(i.id === id && i.color === color && i.size === size)
-          ),
-        })),
+        if (userId) {
+          await fetch('/api/cart', {
+            method: 'DELETE',
+            body: JSON.stringify({ id, userId }),
+          });
+        }
+      },
 
-      clearCart: () => set({ items: [] }),
+      // 6. 登录后同步本地数据
+      syncLocalCartWithServer: async (userId: string) => {
+        const localCart = get().cart;
+        if (localCart.length === 0) {
+          await get().fetchCart(userId);
+          return;
+        }
 
-      getTotalPrice: () =>
-        get().items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+        try {
+          const res = await fetch('/api/cart', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'sync', cart: localCart, userId }),
+          });
 
-      getTotalItems: () =>
-        get().items.reduce((sum, item) => sum + item.quantity, 0),
+          if (res.ok) {
+            await get().fetchCart(userId);
+          }
+        } catch (error) {
+          console.error('Sync error:', error);
+        }
+      },
+
+      // 辅助计算
+      getTotalPrice: () => get().cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
+      getTotalItems: () => get().cart.reduce((sum, item) => sum + item.quantity, 0),
+      clearCart: () => set({ cart: [] }),
     }),
     {
-      name: 'cart-storage', // localStorage key
+      name: 'shopping-cart-storage',
+      // 🚀 关键：只持久化 cart 数组，不持久化 isOpen 和 loading
+      partialize: (state) => ({ cart: state.cart }), 
     }
   )
 );

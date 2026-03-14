@@ -1,76 +1,156 @@
-import { NextRequest } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { PrismaClient } from '@prisma/client';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
+import { hygraph } from '@/lib/hygraph';
+import { gql } from 'graphql-request';
 
-// 将 PrismaClient 实例化移到每个 handler 函数内部
-// 这是修复 Turbopack 构建失败（Failed to collect page data）的关键
-// 因为顶部全局实例化会在构建分析阶段执行代码，导致崩溃
-// 同时建议强制动态渲染（API 路由默认动态，但显式声明更安全）
-export const dynamic = 'force-dynamic';
+// 获取所有收藏商品详情的 GraphQL 查询
+const GET_PRODUCTS_BY_IDS = gql`
+  query GetProductsByIds($ids: [ID!]) {
+    products(where: { id_in: $ids }) {
+      id
+      name
+      price
+      slug
+      images(first: 1) {
+        url
+      }
+      category {
+        slug
+      }
+      subCategories(first: 1) {
+        slug
+      }
+      gender {
+        slug
+      }
+    }
+  }
+`;
 
-export async function GET(request: NextRequest) {
-  const session = await getServerSession();
-  if (!session?.user?.email) {
-    return Response.json({ results: [] });
+// 辅助函数：统一初始化 Supabase 客户端
+async function getSupabase() {
+  const cookieStore = await cookies();
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+        set(name: string, value: string, options: any) {
+          cookieStore.set({ name, value, ...options });
+        },
+        remove(name: string, options: any) {
+          cookieStore.set({ name, value: '', ...options });
+        },
+      },
+    }
+  );
+}
+
+// GET: 获取心愿单数据
+export async function GET(req: Request) {
+  const supabase = await getSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json([], { status: 200 });
   }
 
-  const prisma = new PrismaClient();
+  const { searchParams } = new URL(req.url);
+  const isFullDetail = searchParams.get('full') === 'true';
+
   try {
-    const wishlist = await prisma.wishlist.findMany({
-      where: { userId: session.user.email },
-      include: { product: true },
+    const { data: wishlistItems, error: dbError } = await supabase
+      .from('wishlist')
+      .select('product_id')
+      .eq('user_id', user.id);
+
+    if (dbError) throw dbError;
+
+    // 修复类型报错：显式定义 item 类型
+    const productIds = (wishlistItems || []).map((item: { product_id: string }) => item.product_id);
+
+    if (!isFullDetail) {
+      return NextResponse.json(productIds);
+    }
+
+    if (productIds.length === 0) return NextResponse.json([]);
+
+    const data: any = await hygraph.request(GET_PRODUCTS_BY_IDS, {
+      ids: productIds
     });
 
-    const results = wishlist.map(w => w.product);
+    const formattedProducts = data.products.map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      image: p.images[0]?.url || '',
+      href: `/${p.gender?.slug || 'women'}/${p.category?.slug || 'bags'}/${p.subCategories[0]?.slug || 'all'}/${p.slug}`
+    }));
 
-    return Response.json({ results });
-  } finally {
-    await prisma.$disconnect(); // 可选：在 serverless 环境不推荐频繁 disconnect，但这里安全
+    return NextResponse.json(formattedProducts);
+  } catch (error: any) {
+    console.error('Wishlist GET Error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-export async function POST(request: NextRequest) {
-  const session = await getServerSession();
-  if (!session?.user?.email) {
-    return new Response('Unauthorized', { status: 401 });
+// POST: 添加或取消收藏 (Toggle 逻辑)
+export async function POST(req: Request) {
+  const supabase = await getSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { productId } = await request.json();
-
-  const prisma = new PrismaClient();
   try {
-    await prisma.wishlist.create({
-      data: {
-        userId: session.user.email,
-        productId,
-      },
-    });
+    const { productId } = await req.json();
 
-    return Response.json({ success: true });
-  } finally {
-    await prisma.$disconnect();
-  }
-}
+    if (!productId) {
+      return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });
+    }
 
-export async function DELETE(request: NextRequest) {
-  const session = await getServerSession();
-  if (!session?.user?.email) {
-    return new Response('Unauthorized', { status: 401 });
-  }
+    // 1. 检查是否已经存在
+    const { data: existingItem } = await supabase
+      .from('wishlist')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('product_id', productId)
+      .single();
 
-  const { productId } = await request.json();
+    if (existingItem) {
+      // 2. 如果存在，则执行删除
+      const { error: deleteError } = await supabase
+        .from('wishlist')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('product_id', productId);
 
-  const prisma = new PrismaClient();
-  try {
-    await prisma.wishlist.deleteMany({
-      where: {
-        userId: session.user.email,
-        productId,
-      },
-    });
+      if (deleteError) throw deleteError;
+      return NextResponse.json({ message: 'Removed', status: 'unliked' });
+    } else {
+      // 3. 如果不存在，则执行插入
+      const { error: insertError } = await supabase
+        .from('wishlist')
+        .insert([{ 
+          user_id: user.id, 
+          product_id: productId 
+        }]);
 
-    return Response.json({ success: true });
-  } finally {
-    await prisma.$disconnect();
+      if (insertError) {
+        if (insertError.code === '23505') {
+          return NextResponse.json({ message: 'Already exists', status: 'liked' });
+        }
+        throw insertError;
+      }
+      return NextResponse.json({ message: 'Added', status: 'liked' });
+    }
+  } catch (error: any) {
+    console.error('Wishlist POST Error:', error.message);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

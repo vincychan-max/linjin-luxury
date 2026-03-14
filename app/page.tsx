@@ -1,686 +1,361 @@
-import type { Metadata } from 'next';
+// app/page.tsx
+import { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
+import { hygraph } from '@/lib/hygraph';
 import InstagramCarousel from './components/InstagramCarousel';
+import { createClient } from '@/utils/supabase/server';
 
+// ISR: 每1小时重新验证/更新页面
+export const revalidate = 3600;
+
+// 1. 严格的类型定义
 type Product = {
   id: string;
   name: string;
+  slug: string;
   price: number;
-  images?: string[];
-  code?: string;
-  created_at?: any;
-  isLimited?: boolean;
+  gender: { name: string } | null;      
+  category: { name: string } | null;    
+  subCategories: { name: string }[]; 
+  images: { url: string }[];
 };
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+// 2. 动态 metadata (SEO 优化) - 增强版
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: 'LINJIN LUXURY | Premium Supply Chain Handbags | LA Studio',
+    description: 'From studio to wardrobe. We offer master-quality designer handbags direct from premium supply chains with worldwide express shipping.',
+    keywords: 'luxury handbags, designer bags, premium supply chain, LA fashion studio, high-quality replicas, eternal archive, women bags, men accessories', // 添加关键词优化
+    alternates: { canonical: 'https://linjin-luxury.com' },
+    openGraph: {
+      title: 'LINJIN LUXURY | Premium Supply Chain Handbags | LA Studio',
+      description: 'From studio to wardrobe. We offer master-quality designer handbags direct from premium supply chains with worldwide express shipping.',
+      images: [{ url: '/og-home.jpg', width: 1200, height: 630, alt: 'LINJIN LUXURY Home' }], // 优化图像，添加宽度/高度/alt
+      url: 'https://linjin-luxury.com',
+      type: 'website', // 添加类型
+      siteName: 'LINJIN LUXURY', // 添加站点名
+      locale: 'en_US', // 添加语言区域
+    },
+    twitter: {
+      card: 'summary_large_image', // Twitter卡片类型
+      site: '@linjinluxury', // Twitter句柄（如果有，替换为实际）
+      title: 'LINJIN LUXURY | Premium Supply Chain Handbags | LA Studio',
+      description: 'From studio to wardrobe. We offer master-quality designer handbags direct from premium supply chains with worldwide express shipping.',
+      images: ['/og-home.jpg'], // Twitter图像
+    },
+    robots: 'index, follow', // 机器人指令
+    viewport: 'width=device-width, initial-scale=1.0', // 视口优化（移动友好）
+    icons: {
+      icon: '/favicon.ico', // 添加favicon
+      apple: '/apple-touch-icon.png', // Apple图标
+    },
+  };
+}
 
-export const metadata: Metadata = {
-  title: 'Linjin Luxury | Authentic New Premium Handbags in Los Angeles',
-  description:
-    'Discover authentic new luxury handbags in pristine condition from Linjin Luxury, based in Los Angeles. Premium designer bags with guaranteed authenticity.',
-  openGraph: {
-    title: 'Linjin Luxury | Authentic Luxury Handbags Los Angeles',
-    description:
-      'Premium authentic new designer handbags in Los Angeles. 100% authentic, pristine condition.',
-    images: ['/images/hero-main.jpg'],
-    url: process.env.NEXT_PUBLIC_SITE_URL || 'https://www.linjinluxury.com',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    images: ['/images/hero-main.jpg'],
-  },
-  alternates: {
-    canonical: process.env.NEXT_PUBLIC_SITE_URL || 'https://www.linjinluxury.com',
-  },
-};
-
-export default async function HomePage() {
-  const toTitleCase = (str: string): string => {
-    if (!str) return '';
-    return str
-      .toLowerCase()
-      .split(' ')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
+// 新增：生成 JSON-LD 结构化数据函数（SEO + GEO 优化）
+function generateJsonLd() {
+  const organizationSchema = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "LINJIN LUXURY",
+    "url": "https://linjin-luxury.com",
+    "logo": "/logo.jpg",
+    "description": "Premium supply chain specialists for luxury handbags and fashion items.",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "123 Fashion St", // 你的店铺地址
+      "addressLocality": "Los Angeles",
+      "addressRegion": "CA",
+      "postalCode": "90001",
+      "addressCountry": "US"
+    },
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": 34.0522,
+      "longitude": -118.2437
+    },
+    "contactPoint": {
+      "@type": "ContactPoint",
+      "telephone": "+1-123-456-7890",
+      "contactType": "Customer Service"
+    }
   };
 
-  const blurDataURL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AAgoB/4D1f0AAAAASUVORK5CYII=';
+  return [organizationSchema]; // 返回数组，便于渲染多个 script
+}
 
+export default async function HomePage() {
+  const supabase = await createClient();
+
+  // 路径格式化工具
+  const formatPath = (val: any) => {
+    if (!val) return 'all';
+    const target = Array.isArray(val) ? val[0] : val;
+    const name = typeof target === 'string' ? target : (target?.name || 'all');
+    return name.toLowerCase().trim().replace(/\s+/g, '-') || 'all';
+  };
+
+  // 价格格式化：美式习惯 ($1,250.00)
+  const formatCurrency = (price: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+    }).format(price);
+  };
+
+  const toTitleCase = (str: string): string => {
+    if (!str) return '';
+    return str.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  };
+
+  // 获取数据
   let newArrivals: Product[] = [];
   let limitedProducts: Product[] = [];
-  let uniqueProducts: Product[] = [];
-
   try {
-    const apiUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.linjinluxury.com'}/api/home-products`;
-    const res = await fetch(apiUrl, {
-      cache: 'no-store',
-      next: { revalidate: 0 },
-    });
+    const GET_HOME_DATA = `
+      query GetHomeData {
+        newArrivals: products(where: { isNew: true }, orderBy: publishedAt_DESC, first: 4) {
+          id name slug price gender { name } category { name } subCategories { name } images(first: 2) { url }
+        }
+        limitedProducts: products(where: { isLimited: true }, orderBy: createdAt_ASC, first: 3) {
+          id name slug price gender { name } category { name } subCategories { name } images(first: 1) { url }
+        }
+      }
+    `;
+    const data: any = await hygraph.request(GET_HOME_DATA);
+    newArrivals = data.newArrivals || [];
+    limitedProducts = data.limitedProducts || [];
+  } catch (e) { console.error(e); }
 
-    if (res.ok) {
-      const data = await res.json();
-      newArrivals = data.newArrivals || [];
-      limitedProducts = data.limitedProducts || [];
-    } else {
-      console.error('API response not ok:', res.status);
-    }
-  } catch (error) {
-    console.error('Fetch home products error:', error);
-  }
+  let displayFaqs: { question: string; answer: string }[] = [];
+  try {
+    const { data: faqData } = await supabase.from('faq_sections').select('*').order('display_order');
+    if (faqData) displayFaqs = faqData.flatMap(section => section.items || []).slice(0, 4);
+  } catch (e) { console.error(e); }
 
-  // 双保险 fallback
-  if (newArrivals.length === 0) {
-    console.log('Using fallback test data for newArrivals');
-    newArrivals = [
-      { id: 'test1', name: 'Test Premium Bag', price: 2800, images: ['/images/placeholder.jpg'] },
-      { id: 'test2', name: 'Elegant Tote', price: 3500, images: ['/images/placeholder.jpg'] },
-      { id: 'test3', name: 'Classic Clutch', price: 1900, images: ['/images/placeholder.jpg'] },
-      { id: 'test4', name: 'Designer Crossbody', price: 4200, images: ['/images/placeholder.jpg'] },
-    ];
-  }
-
-  if (limitedProducts.length === 0) {
-    console.log('Using fallback test data for limitedProducts');
-    limitedProducts = [
-      { id: 'limited1', name: 'Limited Edition Hermes', price: 6800, images: ['/images/placeholder.jpg'], isLimited: true },
-      { id: 'limited2', name: 'Rare Chanel Flap', price: 8500, images: ['/images/placeholder.jpg'], isLimited: true },
-    ];
-  }
-
-  uniqueProducts = Array.from(
-    new Map([...newArrivals, ...limitedProducts].map(p => [p.id, p])).values()
-  );
-
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.linjinluxury.com';
+  const jsonLdScripts = generateJsonLd(); // 新增：生成 JSON-LD
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "BreadcrumbList",
-            "itemListElement": [{
-              "@type": "ListItem",
-              "position": 1,
-              "name": "Home",
-              "item": siteUrl
-            }]
-          }),
-        }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            '@context': 'https://schema.org',
-            '@type': 'WebSite',
-            name: 'Linjin Luxury',
-            url: siteUrl,
-            potentialAction: {
-              '@type': 'SearchAction',
-              target: `${siteUrl}/search?q={search_term_string}`,
-              'query-input': 'required name=search_term_string',
-            },
-          }),
-        }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            '@context': 'https://schema.org',
-            '@type': 'Organization',
-            name: 'Linjin Luxury',
-            url: siteUrl,
-            logo: `${siteUrl}/images/logo.png`,
-            address: {
-              '@type': 'PostalAddress',
-              addressLocality: 'Los Angeles',
-              addressRegion: 'CA',
-              addressCountry: 'US',
-            },
-            areaServed: {
-              '@type': 'AdministrativeArea',
-              name: 'Los Angeles, California',
-            },
-            aggregateRating: {
-              '@type': 'AggregateRating',
-              ratingValue: '5.0',
-              bestRating: '5',
-              reviewCount: '142',
-            },
-          }),
-        }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            '@context': 'https://schema.org',
-            '@type': 'CollectionPage',
-            name: 'Premium Luxury Handbags Collection',
-            description: 'Curated collection of authentic new premium designer handbags from Linjin Luxury in Los Angeles.',
-            url: siteUrl,
-            mainEntity: {
-              '@type': 'ItemList',
-              itemListElement: uniqueProducts.map((product, index) => ({
-                '@type': 'ListItem',
-                position: index + 1,
-                item: {
-                  '@type': 'Product',
-                  name: product.name,
-                  image: product.images?.[0] || '/images/placeholder.jpg',
-                  url: `${siteUrl}/product/${product.id}`,
-                  offers: {
-                    '@type': 'Offer',
-                    priceCurrency: 'USD',
-                    price: product.price ? Number(product.price).toFixed(2) : undefined,
-                  },
-                },
-              })),
-            },
-          }),
-        }}
-      />
-
-      {/* Hero Section */}
-      <section className="relative h-screen min-h-[600px] flex items-center justify-center overflow-hidden">
-        <Image
-          src="/images/hero-main.jpg"
-          alt="Linjin Luxury - Authentic Premium Handbags in Los Angeles"
-          fill
-          priority
-          placeholder="blur"
-          blurDataURL={blurDataURL}
-          className="object-cover"
+      {jsonLdScripts.map((schema, index) => ( // 新增：渲染 JSON-LD script 标签
+        <script
+          key={index}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-transparent pointer-events-none z-0" />
-        <div className="relative z-10 text-center text-white px-6">
-          <h1 className="text-5xl sm:text-6xl md:text-8xl font-bold tracking-widest uppercase mb-8 drop-shadow-2xl">
-            Linjin Luxury
-          </h1>
-          <p className="text-2xl sm:text-3xl md:text-5xl tracking-widest mb-12 drop-shadow-2xl">
-            Pristine Luxury Handbags<br className="sm:hidden" /> Los Angeles
-          </p>
-          <div className="flex flex-col md:flex-row gap-8 justify-center items-center">
-            <Link
-              href="#new-arrivals"
-              className="no-underline inline-block px-12 py-6 sm:px-16 sm:py-8 bg-white !text-black hover:!text-black text-2xl uppercase tracking-widest hover:bg-gray-100 !outline-none !ring-0 focus:!outline-none focus:!ring-0 focus-visible:!outline-none hover:!outline-none [-webkit-tap-highlight-color:transparent] transition shadow-2xl rounded-full font-bold active:scale-95"
-            >
-              For Her
-            </Link>
-            <Link
-              href="/collection?gender=men"
-              className="no-underline inline-block px-12 py-6 sm:px-16 sm:py-8 bg-black !text-white hover:!text-white text-2xl uppercase tracking-widest hover:opacity-90 !outline-none !ring-0 focus:!outline-none focus:!ring-0 focus-visible:!outline-none hover:!outline-none [-webkit-tap-highlight-color:transparent] transition shadow-2xl rounded-full font-bold active:scale-95"
-            >
-              For Him
+      ))}
+      <main className="bg-white text-black antialiased selection:bg-black selection:text-white">
+      
+        {/* --- HERO SECTION --- */}
+        <section className="relative h-[80vh] flex flex-col justify-end pb-12 px-6 md:px-24 overflow-hidden">
+          <Image src="/images/hero-main.jpg" alt="LINJIN LUXURY" fill priority className="object-cover" />
+          <div className="relative z-10 w-full flex flex-col md:flex-row md:items-end justify-between gap-8 text-white">
+            <h1 className="text-[50px] md:text-[120px] font-light tracking-tighter uppercase leading-[0.8]">
+              LINJIN<br /><span className="italic font-serif lowercase opacity-90">Eternal Archive</span>
+            </h1>
+            <Link href="/collection" className="group flex items-center gap-4 pb-2 border-b border-white/30 hover:border-white transition-colors">
+              <span className="text-[10px] tracking-[0.3em] uppercase font-bold">Explore Collection</span>
+              <span className="text-lg group-hover:translate-x-3 transition-transform">→</span>
             </Link>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Shop by Category */}
-      <section className="max-w-7xl mx-auto px-6 py-32">
-        <div className="text-center mb-20">
-          <h2 className="text-5xl md:text-7xl font-bold tracking-widest uppercase mb-6">
-            Shop by Category
-          </h2>
-          <p className="text-xl md:text-2xl tracking-wider opacity-80">
-            Curated selections from our Los Angeles collection
-          </p>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
-          <Link href="/collection?category=women" className="group block">
-            <div className="relative aspect-[4/5] overflow-hidden mb-8 bg-gray-100">
-              <Image
-                src="/images/cat-women.jpg"
-                alt="Women's Luxury Handbags Collection"
-                fill
-                sizes="(max-width: 768px) 50vw, (max-width: 1024px) 25vw, 20vw"
-                placeholder="blur"
-                blurDataURL={blurDataURL}
-                className="object-cover group-hover:scale-110 transition-transform duration-700"
-              />
-              <div className="absolute inset-0 bg-black opacity-30 group-hover:opacity-40 transition" />
-            </div>
-            <h3 className="text-2xl md:text-3xl font-semibold uppercase tracking-widest text-center">
-              WOMEN
-            </h3>
-          </Link>
-          <Link href="/collection?category=Women's Small Leather Goods" className="group block">
-            <div className="relative aspect-[4/5] overflow-hidden mb-8 bg-gray-100">
-              <Image
-                src="/images/cat-women's small leather goods.jpg"
-                alt="Women's Small Leather Goods Collection"
-                fill
-                sizes="(max-width: 768px) 50vw, (max-width: 1024px) 25vw, 20vw"
-                placeholder="blur"
-                blurDataURL={blurDataURL}
-                className="object-cover group-hover:scale-110 transition-transform duration-700"
-              />
-              <div className="absolute inset-0 bg-black opacity-30 group-hover:opacity-40 transition" />
-            </div>
-            <h3 className="text-2xl md:text-3xl font-semibold uppercase tracking-widest text-center">
-              Women's Small Leather Goods
-            </h3>
-          </Link>
-          <Link href="/collection?category=Women's Shoes" className="group block">
-            <div className="relative aspect-[4/5] overflow-hidden mb-8 bg-gray-100">
-              <Image
-                src="/images/cat-women's shoes.jpg"
-                alt="Women's Shoes Collection"
-                fill
-                sizes="(max-width: 768px) 50vw, (max-width: 1024px) 25vw, 20vw"
-                placeholder="blur"
-                blurDataURL={blurDataURL}
-                className="object-cover group-hover:scale-110 transition-transform duration-700"
-              />
-              <div className="absolute inset-0 bg-black opacity-30 group-hover:opacity-40 transition" />
-            </div>
-            <h3 className="text-2xl md:text-3xl font-semibold uppercase tracking-widest text-center">
-              Women's Shoes
-            </h3>
-          </Link>
-          <Link href="/collection?category=Beauty" className="group block">
-            <div className="relative aspect-[4/5] overflow-hidden mb-8 bg-gray-100">
-              <Image
-                src="/images/cat-beauty.jpg"
-                alt="Beauty Collection"
-                fill
-                sizes="(max-width: 768px) 50vw, (max-width: 1024px) 25vw, 20vw"
-                placeholder="blur"
-                blurDataURL={blurDataURL}
-                className="object-cover group-hover:scale-110 transition-transform duration-700"
-              />
-              <div className="absolute inset-0 bg-black opacity-30 group-hover:opacity-40 transition" />
-            </div>
-            <h3 className="text-2xl md:text-3xl font-semibold uppercase tracking-widest text-center">
-              Beauty
-            </h3>
-          </Link>
-          <Link href="/collection?category=men" className="group block">
-            <div className="relative aspect-[4/5] overflow-hidden mb-8 bg-gray-100">
-              <Image
-                src="/images/cat-men.jpg"
-                alt="Men's Luxury Collection"
-                fill
-                sizes="(max-width: 768px) 50vw, (max-width: 1024px) 25vw, 20vw"
-                placeholder="blur"
-                blurDataURL={blurDataURL}
-                className="object-cover group-hover:scale-110 transition-transform duration-700"
-              />
-              <div className="absolute inset-0 bg-black opacity-30 group-hover:opacity-40 transition" />
-            </div>
-            <h3 className="text-2xl md:text-3xl font-semibold uppercase tracking-widest text-center">
-              men
-            </h3>
-          </Link>
-          <Link href="/collection?category=Men's Small Leather Goods" className="group block">
-            <div className="relative aspect-[4/5] overflow-hidden mb-8 bg-gray-100">
-              <Image
-                src="/images/cat-men's small leather goods.jpg"
-                alt="Men's Small Leather Goods Collection"
-                fill
-                sizes="(max-width: 768px) 50vw, (max-width: 1024px) 25vw, 20vw"
-                placeholder="blur"
-                blurDataURL={blurDataURL}
-                className="object-cover group-hover:scale-110 transition-transform duration-700"
-              />
-              <div className="absolute inset-0 bg-black opacity-30 group-hover:opacity-40 transition" />
-            </div>
-            <h3 className="text-2xl md:text-3xl font-semibold uppercase tracking-widest text-center">
-              Men's Small Leather Goods
-            </h3>
-          </Link>
-          <Link href="/collection?category=Men's Shoes" className="group block">
-            <div className="relative aspect-[4/5] overflow-hidden mb-8 bg-gray-100">
-              <Image
-                src="/images/cat-men's Shoes.jpg"
-                alt="Men's Shoes Collection"
-                fill
-                sizes="(max-width: 768px) 50vw, (max-width: 1024px) 25vw, 20vw"
-                placeholder="blur"
-                blurDataURL={blurDataURL}
-                className="object-cover group-hover:scale-110 transition-transform duration-700"
-              />
-              <div className="absolute inset-0 bg-black opacity-30 group-hover:opacity-40 transition" />
-            </div>
-            <h3 className="text-2xl md:text-3xl font-semibold uppercase tracking-widest text-center">
-              Men's Shoes
-            </h3>
-          </Link>
-          <Link href="/collection?category=accessories" className="group block">
-            <div className="relative aspect-[4/5] overflow-hidden mb-8 bg-gray-100">
-              <Image
-                src="/images/cat-accessories.jpg"
-                alt="Accessories Collection"
-                fill
-                sizes="(max-width: 768px) 50vw, (max-width: 1024px) 25vw, 20vw"
-                placeholder="blur"
-                blurDataURL={blurDataURL}
-                className="object-cover group-hover:scale-110 transition-transform duration-700"
-              />
-              <div className="absolute inset-0 bg-black opacity-30 group-hover:opacity-40 transition" />
-            </div>
-            <h3 className="text-2xl md:text-3xl font-semibold uppercase tracking-widest text-center">
-              ACCESSORIES
-            </h3>
-          </Link>
-        </div>
-      </section>
-
-      {/* New Arrivals */}
-      <section id="new-arrivals" className="max-w-7xl mx-auto px-6 py-32 bg-white">
-        <div className="text-center mb-16">
-          <h2 className="text-5xl md:text-7xl font-bold tracking-widest uppercase">
-            New Arrivals
-          </h2>
-          <p className="text-xl md:text-2xl tracking-wider opacity-80 mt-6">
-            Fresh from Los Angeles — the latest pristine arrivals
-          </p>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-12 lg:gap-20 justify-items-center">
-          {newArrivals.length > 0 ? (
-            newArrivals.map((product) => (
-              <Link key={product.id} href={`/product/${product.id}`} className="group block max-w-sm w-full">
-                <div className="relative aspect-[4/5] overflow-hidden bg-gray-100 rounded-3xl shadow-2xl">
-                  <Image
-                    src={product.images?.[0] || '/images/placeholder.jpg'}
-                    alt={product.name}
-                    fill
-                    sizes="(max-width: 768px) 45vw, 25vw"
-                    placeholder="blur"
-                    blurDataURL={blurDataURL}
-                    className="object-cover group-hover:scale-105 transition-transform duration-700"
-                  />
-                </div>
-                <h4 className="mt-10 text-2xl md:text-3xl font-semibold tracking-widest text-center">
-                  {toTitleCase(product.name)}
-                </h4>
-                <p className="mt-4 text-3xl md:text-4xl font-bold text-center">
-                  {new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                    minimumFractionDigits: 0,
-                  }).format(product.price)}
-                </p>
+        {/* --- ASYMMETRIC GRID --- */}
+        <section className="py-16 md:py-24 bg-white">
+          <div className="max-w-[1600px] mx-auto px-6 md:px-12 lg:px-24">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
+              <Link href="/women/all/all" className="md:col-span-2 md:row-span-2 relative group overflow-hidden bg-gray-50 h-[450px] md:h-[800px]">
+                <Image src="/images/cat-women.jpg" alt="Women's Collection" fill className="object-cover group-hover:scale-105 transition-all duration-1000" sizes="(max-width: 768px) 100vw, 50vw" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+                <div className="absolute bottom-8 left-8"><h3 className="text-white text-[16px] md:text-[18px] tracking-[0.5em] uppercase font-bold">Women</h3></div>
               </Link>
-            ))
-          ) : (
-            Array(4).fill(0).map((_, i) => (
-              <div key={i} className="group block max-w-sm w-full animate-pulse">
-                <div className="aspect-[4/5] bg-gray-200 rounded-3xl" />
-                <div className="mt-10 h-10 bg-gray-200 rounded w-3/4 mx-auto" />
-                <div className="mt-4 h-12 bg-gray-200 rounded w-1/2 mx-auto" />
-              </div>
-            ))
-          )}
-        </div>
-        {newArrivals.length > 0 && (
-          <div className="text-center mt-24">
-            <Link
-              href="/collection"
-              className="no-underline inline-block px-12 py-6 sm:px-16 sm:py-8 bg-black !text-white hover:!text-white text-2xl uppercase tracking-widest hover:opacity-90 !outline-none !ring-0 focus:!outline-none focus:!ring-0 focus-visible:!outline-none hover:!outline-none [-webkit-tap-highlight-color:transparent] transition shadow-2xl rounded-full font-bold active:scale-95"
-            >
-              Shop the Collection →
-            </Link>
-          </div>
-        )}
-      </section>
-
-      {/* Limited Edition */}
-      <section className="max-w-7xl mx-auto px-6 py-32 bg-gray-50">
-        <div className="text-center mb-16">
-          <h2 className="text-5xl md:text-7xl font-bold tracking-widest uppercase">
-            Limited Edition
-          </h2>
-          <p className="text-xl md:text-2xl tracking-wider opacity-80 mt-6">
-            Rare treasures — privately curated exclusives
-          </p>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-12 lg:gap-20 justify-items-center">
-          {limitedProducts.length > 0 ? (
-            limitedProducts.map((product) => (
-              <Link
-                key={product.id}
-                href={product.isLimited ? `/limited/${product.id}` : `/product/${product.id}`}
-                className="group block max-w-sm w-full"
-              >
-                <div className="relative aspect-[3/4] overflow-hidden bg-gray-100 rounded-3xl shadow-2xl">
-                  <Image
-                    src={product.images?.[0] || '/images/placeholder.jpg'}
-                    alt={product.name}
-                    fill
-                    sizes="(max-width: 768px) 45vw, 25vw"
-                    placeholder="blur"
-                    blurDataURL={blurDataURL}
-                    className="object-cover group-hover:scale-105 transition-transform duration-700"
-                  />
-                </div>
-                <h4 className="mt-10 text-xl md:text-2xl font-semibold tracking-widest text-center">
-                  {toTitleCase(product.name)}
-                </h4>
-                <p className="mt-4 text-3xl md:text-4xl font-bold text-center">
-                  {new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                    minimumFractionDigits: 0,
-                  }).format(product.price)}
-                </p>
+              <Link href="/men/all/all" className="md:col-span-2 relative group overflow-hidden bg-gray-50 h-[250px] md:h-auto">
+                <Image src="/images/cat-men.jpg" alt="Men's Luxury Pieces" fill className="object-cover group-hover:scale-105 transition-all duration-1000" sizes="(max-width: 768px) 100vw, 50vw" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+                <div className="absolute bottom-8 left-8"><h3 className="text-white text-[14px] tracking-[0.4em] uppercase font-bold">Men</h3></div>
               </Link>
-            ))
-          ) : (
-            Array(4).fill(0).map((_, i) => (
-              <div key={i} className="group block max-w-sm w-full animate-pulse">
-                <div className="aspect-[3/4] bg-gray-200 rounded-3xl" />
-                <div className="mt-10 h-8 bg-gray-200 rounded w-3/4 mx-auto" />
-                <div className="mt-4 h-12 bg-gray-200 rounded w-1/2 mx-auto" />
-              </div>
-            ))
-          )}
-        </div>
-        {limitedProducts.length > 0 && (
-          <div className="text-center mt-24">
-            <Link
-              href="/collection"
-              className="no-underline inline-block px-12 py-6 sm:px-16 sm:py-8 bg-black !text-white hover:!text-white text-2xl uppercase tracking-widest hover:opacity-90 !outline-none !ring-0 focus:!outline-none focus:!ring-0 focus-visible:!outline-none hover:!outline-none [-webkit-tap-highlight-color:transparent] transition shadow-2xl rounded-full font-bold active:scale-95"
-            >
-              Shop the Collection →
-            </Link>
-          </div>
-        )}
-      </section>
-
-      {/* Testimonials */}
-      <section className="bg-white py-32">
-        <div className="max-w-7xl mx-auto px-6 text-center">
-          <h2 className="text-5xl md:text-7xl font-bold tracking-widest uppercase mb-4">
-            Client Testimonials
-          </h2>
-          <p className="text-2xl md:text-3xl tracking-wider mb-20 opacity-90">
-            Rated <span className="font-bold text-yellow-500">5.0 ★★★★★</span> based on 142 reviews
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-16">
-            <div className="bg-gray-50 p-12 rounded-3xl shadow-lg">
-              <p className="text-lg italic mb-8">"Exceptional quality and discreet service. My favorite purchase ever."</p>
-              <p className="font-semibold">— Sarah L., Los Angeles</p>
-              <div className="text-yellow-500 mt-4 text-2xl">★★★★★</div>
-            </div>
-            <div className="bg-gray-50 p-12 rounded-3xl shadow-lg">
-              <p className="text-lg italic mb-8">"Pristine condition and 100% authentic. Highly recommend."</p>
-              <p className="font-semibold">— Emma R.</p>
-              <div className="text-yellow-500 mt-4 text-2xl">★★★★★</div>
-            </div>
-            <div className="bg-gray-50 p-12 rounded-3xl shadow-lg">
-              <p className="text-lg italic mb-8">"Elegant selection and swift shipping from LA."</p>
-              <p className="font-semibold">— Olivia M.</p>
-              <div className="text-yellow-500 mt-4 text-2xl">★★★★★</div>
+              <Link href="/accessory/all/all" className="md:col-span-2 relative group overflow-hidden bg-gray-50 h-[250px] md:h-auto">
+                <Image src="/images/cat-accessories.jpg" alt="Luxury Accessories" fill className="object-cover group-hover:scale-105 transition-all duration-1000" sizes="(max-width: 768px) 100vw, 50vw" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+                <div className="absolute bottom-8 left-8"><h3 className="text-white text-[14px] tracking-[0.4em] uppercase font-bold">Accessory</h3></div>
+              </Link>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Instagram Feed */}
-      <section className="max-w-7xl mx-auto px-6 py-24 bg-gray-50">
-        <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-6xl font-bold tracking-widest uppercase mb-6">
-            Follow Us @linjinluxury
-          </h2>
-          <p className="text-xl md:text-2xl tracking-wider opacity-80 mb-8">
-            Exclusive behind-the-scenes, client styling inspiration, and new arrivals
-          </p>
-          <Link
-            href="https://www.instagram.com/linjinluxury"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-block px-16 py-6 border-2 border-black text-black text-xl uppercase tracking-widest hover:bg-black hover:text-white transition rounded-full font-semibold"
-          >
-            Follow on Instagram →
-          </Link>
-        </div>
+        {/* --- NEW ARRIVALS (Hover 双图切换) --- */}
+        <section className="py-20 md:py-32 bg-white border-t border-black/5">
+          <div className="max-w-[1600px] mx-auto px-6 md:px-24">
+            <header className="flex justify-between items-end mb-12">
+              <h2 className="text-[11px] font-bold tracking-[0.4em] uppercase mb-2">New Arrivals</h2>
+              <Link href="/collection" className="text-[10px] border-b border-black pb-1 uppercase font-bold">View All</Link>
+            </header>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+              {newArrivals.map((product) => (
+                <article key={product.id}>
+                  <Link href={`/${formatPath(product.gender)}/${formatPath(product.category)}/${formatPath(product.subCategories)}/${product.slug}`} className="group block">
+                    <div className="relative aspect-[3/4] overflow-hidden bg-gray-50 mb-5">
+                      <Image src={product.images?.[0]?.url || '/images/placeholder.jpg'} alt={product.name} fill className="object-cover group-hover:opacity-0 transition-opacity duration-700" sizes="(max-width: 768px) 50vw, 25vw" />
+                      {product.images?.[1] && <Image src={product.images[1].url} alt={product.name} fill className="object-cover opacity-0 group-hover:opacity-100 transition-opacity duration-700" sizes="(max-width: 768px) 50vw, 25vw" />}
+                    </div>
+                    <h4 className="text-[10px] tracking-[0.1em] uppercase font-bold mb-1">{toTitleCase(product.name)}</h4>
+                    {/* 产品卡片价格颜色保持稍微暗一点以突出标题 */}
+                    <p className="text-[11px] font-light text-black/40">{formatCurrency(product.price)}</p>
+                  </Link>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        
+
+        {/* --- LIMITED VAULT (Black Section) --- */}
+        <section className="bg-black py-24 text-white">
+          <div className="max-w-[1600px] mx-auto px-6 md:px-24">
+            <div className="mb-20">
+              <p className="text-[10px] tracking-[0.5em] uppercase text-white/40 font-bold mb-4">Studio Private Vault</p>
+              <h2 className="text-[36px] md:text-[56px] font-light tracking-tighter uppercase leading-none">
+                Limited <span className="font-serif italic lowercase">acquisitions</span>
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+              {limitedProducts.map((product) => (
+                <article key={product.id}>
+                  <Link href={`/limited/${product.slug}`} className="group block">
+                    <div className="relative aspect-[4/5] overflow-hidden bg-neutral-900 mb-8">
+                      <Image src={product.images?.[0]?.url || '/images/placeholder.jpg'} alt={product.name} fill className="object-cover opacity-90 group-hover:opacity-100 transition-all duration-1000" sizes="(max-width: 768px) 100vw, 33vw" />
+                    </div>
+                    <h4 className="text-[10px] tracking-[0.2em] uppercase font-bold mb-2 text-white/90">{toTitleCase(product.name)}</h4>
+                    <div className="flex items-baseline gap-4">
+                      <p className="text-[12px] font-light text-white/30 tracking-widest">{formatCurrency(product.price)}</p>
+                      <span className="text-[8px] uppercase tracking-tighter text-red-500/80 font-bold px-1.5 py-0.5 border border-red-500/20">Only 1 Available</span>
+                    </div>
+                  </Link>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* --- GLOBAL LOGISTICS PROMISE (Trust Badges) (image_1.png) 整体微调 --- */}
+        <section className="py-20 bg-white border-b border-black/5">
+          <div className="max-w-[1600px] mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-12">
+            <div className="flex flex-col items-center text-center">
+              {/* 标题变为纯黑并放大至 [11px] */}
+              <span className="text-[11px] font-bold uppercase tracking-[0.3em] mb-4 text-black">Global Express</span>
+              {/* 描述文字变为纯黑并放大至 [11px] */}
+              <p className="text-[11px] text-black uppercase tracking-[0.2em] leading-relaxed">
+                Studio to door delivery <br /> within 5-7 business days.
+              </p>
+            </div>
+            <div className="flex flex-col items-center text-center border-y md:border-y-0 md:border-x border-black/5 py-10 md:py-0">
+              <span className="text-[11px] font-bold uppercase tracking-[0.3em] mb-4 text-black">Master Quality</span>
+              <p className="text-[11px] text-black uppercase tracking-[0.2em] leading-relaxed">
+                Direct from premium supply chains <br /> with hand-selected inspection.
+              </p>
+            </div>
+            <div className="flex flex-col items-center text-center">
+              <span className="text-[11px] font-bold uppercase tracking-[0.3em] mb-4 text-black">Secure Tracking</span>
+              <p className="text-[11px] text-black uppercase tracking-[0.2em] leading-relaxed">
+                Full end-to-end tracking <br /> provided for every acquisition.
+              </p>
+            </div>
+          </div>
+        </section>
+        
+        {/* --- BRAND MANIFESTO (Cinematic Wide) --- */}
+        <section className="py-24 bg-[#fafafa] overflow-hidden border-y border-black/5">
+          <div className="max-w-[1400px] mx-auto px-6 text-center">
+            
+            <div className="relative w-full aspect-[21/9] max-h-[500px] mb-20 overflow-hidden bg-neutral-200 shadow-xl group">
+               <video autoPlay muted loop playsInline className="w-full h-full object-cover">
+                 <source src="/videos/brand-detail.mp4" type="video/mp4" />
+               </video>
+               <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/5 pointer-events-none"></div>
+               <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-white/40 text-[9px] md:text-[10px] tracking-[1.2em] uppercase font-bold">Studio-to-Wardrobe</span>
+               </div>
+            </div>
+
+            <div className="max-w-4xl mx-auto">
+              {/* LINJIN LUXURY | Los Angeles (image_3.png) 放大并变为纯黑 */}
+              <h2 className="text-[11px] tracking-[0.6em] font-bold uppercase mb-12 text-black">
+                LINJIN LUXURY | Los Angeles
+              </h2>
+              
+              <p className="text-2xl md:text-4xl font-light leading-snug tracking-tighter text-black/90 mb-10">
+                Premium Supply Chain Specialists. From the <span className="font-serif italic">Studio Floor</span> to your <span className="font-serif italic">Wardrobe</span>.
+              </p>
+
+              {/* Divider (image_2.png) 保持淡灰色以显精致 */}
+              <div className="text-black/10 text-2xl mb-10">/</div>
+
+              {/* 补充说明文字 (image_2.png) 放大并变为纯黑 */}
+              <p className="text-[12px] uppercase tracking-[0.3em] font-medium text-black max-w-xl mx-auto leading-loose">
+                Curated precision. Master-level leatherwork at honest pricing.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* --- FAQ SECTION (Home Page Summary) --- */}
+<section className="py-24 bg-white px-6 md:px-24">
+  <div className="max-w-[1600px] mx-auto flex flex-col lg:flex-row gap-20">
+    
+    {/* 左侧：Service Journal 入口标题 */}
+    <div className="lg:w-1/3">
+      <h3 className="text-3xl font-light uppercase tracking-tighter mb-8 text-black">
+        Service <span className="font-serif italic lowercase text-black/40">journal</span>
+      </h3>
+      
+      {/* 调整后的 Essential Questions 标题链接 */}
+      <Link href="/essential-questions" className="group inline-block mb-10">
+        <h4 className="text-[11px] text-black font-bold uppercase tracking-[0.4em] group-hover:opacity-50 transition-opacity">
+          Essential Questions <span className="ml-2">↗</span>
+        </h4>
+      </Link>
+    </div>
+
+    {/* 右侧：FAQ 列表与 View All 按钮 */}
+    <div className="lg:w-2/3 w-full">
+      <div className="divide-y divide-black/10 border-b border-black/10">
+        {displayFaqs.slice(0, 4).map((item, idx) => (
+          <details key={idx} className="group py-7 outline-none cursor-pointer">
+            <summary className="flex justify-between items-center list-none">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-black">
+                {item.question}
+              </span>
+              <span className="text-lg font-light transition-transform duration-500 group-open:rotate-45 text-black">
+                +
+              </span>
+            </summary>
+            <div className="pt-6 text-[13px] text-black/80 font-light leading-relaxed max-w-xl">
+              {item.answer}
+            </div>
+          </details>
+        ))}
+      </div>
+
+      {/* 新增：View All FAQ 按钮 (对应 image_846a4e.png 箭头位置) */}
+      <div className="mt-12 flex justify-start">
+        <Link 
+          href="/essential-questions" 
+          className="text-[11px] font-bold uppercase tracking-[0.3em] border-b border-black pb-1 hover:opacity-50 transition-all text-black inline-flex items-center gap-4"
+        >
+          View All FAQ <span>—</span>
+        </Link>
+      </div>
+    </div>
+  </div>
+</section>
+
         <InstagramCarousel />
-      </section>
-
-      {/* About + Trust Signals */}
-      <section className="bg-white py-24">
-        <div className="max-w-4xl mx-auto px-6 text-center">
-          <h2 className="text-4xl md:text-6xl font-bold tracking-widest uppercase mb-12">
-            About Linjin Luxury
-          </h2>
-          <p className="text-xl md:text-2xl leading-relaxed mb-12 max-w-3xl mx-auto">
-            Based in Los Angeles, Linjin Luxury specializes in authentic new premium designer handbags in pristine condition. 
-            Each piece is meticulously sourced to guarantee 100% authenticity and exceptional quality for discerning collectors.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 text-lg">
-            <div>
-              <p className="font-semibold uppercase tracking-wider mb-4">100% Authentic</p>
-              <p>Guaranteed genuine designer pieces</p>
-            </div>
-            <div>
-              <p className="font-semibold uppercase tracking-wider mb-4">Pristine Condition</p>
-              <p>New or like-new premium handbags</p>
-            </div>
-            <div>
-              <p className="font-semibold uppercase tracking-widest mb-4">Los Angeles Based</p>
-              <p>Local expertise and discreet shipping</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Our Commitments + FAQ */}
-      <section className="py-24 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-6">
-          <h2 className="text-4xl md:text-6xl font-bold tracking-widest uppercase text-center mb-16">
-            Our Commitments
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-16">
-            <details className="group text-center">
-              <summary className="cursor-pointer list-none">
-                <div className="mb-10 text-8xl opacity-70 group-open:opacity-100 transition-opacity">
-                  🔒
-                </div>
-                <h3 className="text-3xl font-semibold uppercase tracking-widest mb-6">
-                  Guaranteed Authenticity
-                </h3>
-                <p className="text-lg leading-relaxed opacity-80 mb-8 max-w-sm mx-auto">
-                  Every handbag is meticulously verified by Los Angeles-based experts, accompanied by provenance documentation upon request.
-                </p>
-                <Link href="/faq#authenticity" className="text-lg uppercase tracking-widest border-b-2 border-black pb-1 hover:border-gray-600 transition inline-block">
-                  Learn More →
-                </Link>
-              </summary>
-              <div className="mt-10 space-y-6 text-left max-w-sm mx-auto">
-                <div>
-                  <p className="font-semibold mb-2">How do you verify authenticity?</p>
-                  <p className="text-base opacity-80">We use a multi-step process including physical inspection, serial number checks, and comparison with official records.</p>
-                </div>
-                <div>
-                  <p className="font-semibold mb-2">Do you provide certificates?</p>
-                  <p className="text-base opacity-80">Yes, authenticity certificates and detailed reports are available upon request.</p>
-                </div>
-                <div>
-                  <p className="font-semibold mb-2">What if I doubt an item's authenticity?</p>
-                  <p className="text-base opacity-80">We offer third-party authentication options and full refund if proven otherwise.</p>
-                </div>
-              </div>
-            </details>
-            <details className="group text-center">
-              <summary className="cursor-pointer list-none">
-                <div className="mb-10 text-8xl opacity-70 group-open:opacity-100 transition-opacity">
-                  ✨
-                </div>
-                <h3 className="text-3xl font-semibold uppercase tracking-widest mb-6">
-                  Pristine Condition
-                </h3>
-                <p className="text-lg leading-relaxed opacity-80 mb-8 max-w-sm mx-auto">
-                  All pieces are presented new or in impeccable like-new condition, carefully preserved with original accessories.
-                </p>
-                <Link href="/faq#condition" className="text-lg uppercase tracking-widest border-b-2 border-black pb-1 hover:border-gray-600 transition inline-block">
-                  Learn More →
-                </Link>
-              </summary>
-              <div className="mt-10 space-y-6 text-left max-w-sm mx-auto">
-                <div>
-                  <p className="font-semibold mb-2">What does "pristine like-new" mean?</p>
-                  <p className="text-base opacity-80">Minimal to no signs of wear, stored properly with all original packaging when available.</p>
-                </div>
-                <div>
-                  <p className="font-semibold mb-2">Do items come with original boxes?</p>
-                  <p className="text-base opacity-80">Whenever possible, yes — including dust bags, tags, and receipts.</p>
-                </div>
-                <div>
-                  <p className="font-semibold mb-2">Are your handbags brand new or pre-owned?</p>
-                  <p className="text-base opacity-80">All items are either brand new or in pristine like-new condition with minimal to no signs of wear.</p>
-                </div>
-              </div>
-            </details>
-            <details className="group text-center">
-              <summary className="cursor-pointer list-none">
-                <div className="mb-10 text-8xl opacity-70 group-open:opacity-100 transition-opacity">
-                  📦
-                </div>
-                <h3 className="text-3xl font-semibold uppercase tracking-widest mb-6">
-                  Discreet Worldwide Shipping
-                </h3>
-                <p className="text-lg leading-relaxed opacity-80 mb-8 max-w-sm mx-auto">
-                  Secure, unmarked packaging shipped directly from Los Angeles, ensuring complete privacy and swift delivery.
-                </p>
-                <Link href="/faq#shipping" className="text-lg uppercase tracking-widest border-b-2 border-black pb-1 hover:border-gray-600 transition inline-block">
-                  Learn More →
-                </Link>
-              </summary>
-              <div className="mt-10 space-y-6 text-left max-w-sm mx-auto">
-                <div>
-                  <p className="font-semibold mb-2">How long does shipping take?</p>
-                  <p className="text-base opacity-80">US: 1-3 business days. International: 3-7 days. All fully insured and tracked.</p>
-                </div>
-                <div>
-                  <p className="font-semibold mb-2">Is packaging really discreet?</p>
-                  <p className="text-base opacity-80">Yes — plain boxes with no brand markings for maximum privacy.</p>
-                </div>
-                <div>
-                  <p className="font-semibold mb-2">What about returns?</p>
-                  <p className="text-base opacity-80">7-day return window for unworn items. Contact us to arrange.</p>
-                </div>
-                <div>
-                  <p className="font-semibold mb-2">Do you ship internationally?</p>
-                  <p className="text-base opacity-80">Yes, we offer fully insured worldwide shipping with tracking.</p>
-                </div>
-              </div>
-            </details>
-          </div>
-          <div className="text-center mt-20">
-            <Link href="/faq" className="text-lg uppercase tracking-widest border-b-2 border-black pb-1 hover:border-gray-600 transition">
-              More Questions? View Full FAQ →
-            </Link>
-          </div>
-        </div>
-      </section>
+        
+       
+      </main>
     </>
   );
 }

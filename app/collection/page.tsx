@@ -1,120 +1,178 @@
-// app/collection/page.tsx
 import { Metadata } from 'next';
-import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-
+import { hygraph } from '@/lib/hygraph';
 import Link from 'next/link';
 import ProductGrid from '../components/ProductGrid';
 
 type Product = {
   id: string;
   name: string;
+  slug: string;
   price: number;
   images: string[];
-  category?: string;
-  gender?: string;
-  created_at?: any;
+  isNew?: boolean;
 };
 
 type Props = {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
-// 强制动态渲染，避免 prerender 错误
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+// 开启 ISR：每小时自动生成一次静态页面，极致的加载速度有利于 Google 排名
+export const revalidate = 3600;
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
-  // 安全处理 searchParams（Next.js 类型可能是 string | string[]）
-  const rawCategory = searchParams.category;
-  const rawGender = searchParams.gender;
-
-  const category = Array.isArray(rawCategory) ? rawCategory[0] : rawCategory;
-  const gender = Array.isArray(rawGender) ? rawGender[0] : rawGender;
-
-  const titleCategory = category && category !== 'All' ? category : (gender || 'Full');
-
+  const resolved = await searchParams;
+  const gender = (Array.isArray(resolved.gender) ? resolved.gender[0] : resolved.gender)?.toLowerCase();
   return {
-    title: `Linjin Luxury | ${titleCategory} Collection`,
-    description: `Explore authentic premium ${titleCategory.toLowerCase()} designer handbags in pristine condition from Linjin Luxury in Los Angeles.`,
+    title: `LINJIN LUXURY | ${gender ? gender.toUpperCase() : 'FULL'} COLLECTION`,
+    description: "Curated premium designer handbags from our Los Angeles studio. Master quality craftsmanship at honest pricing.",
   };
 }
 
 export default async function CollectionPage({ searchParams }: Props) {
-  // 同样安全处理 searchParams
-  const rawCategory = searchParams.category;
-  const rawGender = searchParams.gender;
-
-  const category = Array.isArray(rawCategory) ? rawCategory[0] : rawCategory;
-  const gender = Array.isArray(rawGender) ? rawGender[0] : rawGender;
-
-  // 初始查询（第一页）
-  let q = query(collection(db, 'products'), orderBy('created_at', 'desc'), limit(12));
-
-  if (category) {
-    q = query(q, where('category', '==', category));
-  }
-  if (gender) {
-    q = query(q, where('gender', '==', gender));
-  }
+  const resolved = await searchParams;
+  const gender = (Array.isArray(resolved.gender) ? resolved.gender[0] : resolved.gender)?.toLowerCase() || null;
+  const category = (Array.isArray(resolved.category) ? resolved.category[0] : resolved.category) || null;
 
   let initialProducts: Product[] = [];
-  let initialLastCreatedAt: any = null;
 
   try {
-    const snapshot = await getDocs(q);
-    initialProducts = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        name: data.name || 'Untitled',
-        price: Number(data.price) || 0,
-        images: data.images || data.colorImages ? Object.values(data.colorImages || {}).flat() as string[] : ['/images/placeholder.jpg'],
-        category: data.category,
-        gender: data.gender,
-        created_at: data.created_at,
-      };
-    });
+    const whereConditions: any = { AND: [] };
+    if (gender) whereConditions.AND.push({ gender: { slug: gender } });
+    if (category) whereConditions.AND.push({ subCategories_some: { slug: category } });
 
-    if (snapshot.docs.length > 0) {
-      initialLastCreatedAt = snapshot.docs[snapshot.docs.length - 1].data().created_at;
-    }
-  } catch (error) {
-    console.error('Collection page initial query error:', error);
-    initialProducts = [];
+    const GET_PRODUCTS = `
+      query GetCollectionProducts($where: ProductWhereInput) {
+        products(first: 40, orderBy: publishedAt_DESC, where: $where) {
+          id
+          name
+          slug
+          price
+          images { url }
+          isNew
+        }
+      }
+    `;
+
+    const data: any = await hygraph.request(GET_PRODUCTS, { 
+      where: whereConditions.AND.length > 0 ? whereConditions : {} 
+    });
+    
+    initialProducts = (data.products || []).map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      slug: p.slug,
+      price: p.price,
+      images: p.images?.map((img: { url: string }) => img.url) || [],
+      isNew: p.isNew
+    }));
+  } catch (e) {
+    console.error('Hygraph fetch error:', e);
   }
 
+  // 结构化数据：AI 能读到 FAQ，但用户在界面上看不到任何冗余文字
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "ItemList",
+        "name": "Linjin Luxury Collection",
+        "itemListElement": initialProducts.map((p, i) => ({
+          "@type": "ListItem",
+          "position": i + 1,
+          "url": `https://yourdomain.com/product/${p.slug}`,
+          "name": p.name
+        }))
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Shipping time to USA?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Global Express shipping takes 5-7 business days." }
+          },
+          {
+            "@type": "Question",
+            "name": "Quality assurance?",
+            "acceptedAnswer": { "@type": "Answer", "text": "All items are hand-selected and inspected in our Los Angeles studio." }
+          }
+        ]
+      }
+    ]
+  };
+
   return (
-    <>
-      <section className="max-w-7xl mx-auto px-6 py-20">
-        <div className="text-center mb-12">
-          <h1 className="text-5xl md:text-7xl font-bold tracking-widest uppercase mb-6">
-            {category || gender || 'Full'} Collection
+    <main className="bg-white min-h-screen text-black">
+      {/* 隐形 SEO/AI 注入 */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
+      {/* 视觉页眉：极致留白风格 */}
+      <section className="max-w-7xl mx-auto px-6 pt-48 pb-20">
+        <div className="text-center">
+          <p className="text-[10px] uppercase tracking-[0.6em] text-black/40 mb-10 font-medium">
+            LINJIN LUXURY | STUDIO DIRECT
+          </p>
+          
+          <h1 className="text-4xl md:text-6xl font-bold tracking-[0.1em] uppercase mb-12 text-black">
+            {gender ? gender : 'THE FULL'} COLLECTION
           </h1>
-          <p className="text-xl md:text-2xl tracking-wider opacity-80">
-            Authentic premium designer handbags in pristine condition
+          
+          <div className="w-12 h-px bg-black/20 mx-auto mb-12"></div>
+          
+          <p className="max-w-2xl mx-auto text-[11px] uppercase tracking-[0.3em] leading-[2.4] text-black/60">
+            Curated premium leatherwork. <br className="hidden md:block" />
+            Designed for longevity, sourced with integrity.
           </p>
         </div>
 
-        <div className="flex flex-wrap justify-center gap-6 mb-16">
-          <Link href="/collection" className="px-8 py-3 border border-black rounded-full hover:bg-black hover:text-white transition">
-            All
-          </Link>
-          <Link href="/collection?category=women" className="px-8 py-3 border border-black rounded-full hover:bg-black hover:text-white transition">
-            Women
-          </Link>
-          <Link href="/collection?category=men" className="px-8 py-3 border border-black rounded-full hover:bg-black hover:text-white transition">
-            Men
-          </Link>
-        </div>
+        {/* 筛选导航：极简线条风格 */}
+        <nav className="flex justify-center gap-12 mt-24">
+          {['all', 'women', 'men'].map((t) => {
+            const isActive = (t === 'all' && !gender) || gender === t;
+            return (
+              <Link 
+                key={t} 
+                href={t === 'all' ? '/collection' : `/collection?gender=${t}`}
+                className={`text-[11px] uppercase tracking-[0.4em] pb-1 border-b transition-all duration-500 ${
+                  isActive ? 'border-black text-black' : 'border-transparent text-black/20 hover:text-black hover:border-black/20'
+                }`}
+              >
+                {t}
+              </Link>
+            );
+          })}
+        </nav>
       </section>
 
-      <ProductGrid 
-        initialProducts={initialProducts}
-        initialLastCreatedAt={initialLastCreatedAt}
-        category={category}
-        gender={gender}
-      />
-    </>
+      {/* 产品展示区域 */}
+      <section className="max-w-[1500px] mx-auto px-8 pb-32">
+        <ProductGrid 
+          initialProducts={initialProducts} 
+          category={category} 
+          gender={gender} 
+        />
+      </section>
+
+      {/* 底部信任条：用极简排版替代 FAQ，既满足信息传递又好看 */}
+      <footer className="border-t border-black/5 py-32 bg-[#FFFFFF]">
+        <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-y-20 text-center">
+          <div>
+            <h4 className="text-[11px] font-bold tracking-[0.4em] uppercase mb-4 text-black text-center">GLOBAL EXPRESS</h4>
+            <p className="text-[9px] tracking-[0.25em] text-black/40 uppercase">5-7 Business Days</p>
+          </div>
+          <div>
+            <h4 className="text-[11px] font-bold tracking-[0.4em] uppercase mb-4 text-black text-center">MASTER QUALITY</h4>
+            <p className="text-[9px] tracking-[0.25em] text-black/40 uppercase">Hand-Selected in LA</p>
+          </div>
+          <div>
+            <h4 className="text-[11px] font-bold tracking-[0.4em] uppercase mb-4 text-black text-center">DIRECT ACCESS</h4>
+            <p className="text-[9px] tracking-[0.25em] text-black/40 uppercase">No Retail Markup</p>
+          </div>
+        </div>
+      </footer>
+    </main>
   );
 }

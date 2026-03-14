@@ -1,113 +1,76 @@
-@import "tailwindcss";
+/* 1. Tailwind v3 标准导入 */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
+/* 2. 变量定义：确保根级别背景为白，文字为黑 */
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #000000;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
+/* 强制关闭黑暗模式对颜色的反转逻辑 */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #ffffff;
+    --foreground: #000000;
   }
 }
 
-html, body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-  /* 关键：防止页面整体滚动跳动和弹性滚动 */
-  overscroll-behavior: none;
-  /* 删除或注释这行：touch-action: manipulation; */ 
-  /* 移除后，子元素触屏正常 */
-  /* 防止平滑滚动引起轻微跳动 */
-  scroll-behavior: auto !important;
+/* 3. 基础样式 Reset */
+@layer base {
+  html, body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: Arial, Helvetica, sans-serif;
+    overscroll-behavior: none;
+    scroll-behavior: auto !important;
+  }
+
+  /* 修复：使用 -webkit 前缀并移除校验报错 */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* 彻底移除所有点击焦点环 */
+  *:focus, *:focus-visible, *:active {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  /* --- 关键修复：解除全局 a 标签的锁定 --- */
+  a {
+    text-decoration: none;
+    /* 移除之前的 !important，允许在组件内使用 text-black 修改颜色 */
+    color: inherit; 
+  }
+
+  /* 确保按钮和选择框在所有端显示一致 */
+  input, textarea, select, button {
+    -webkit-appearance: none;
+    appearance: none;
+    border-radius: 0;
+    background-color: transparent;
+  }
 }
 
-/* 彻底移除所有点击高亮、焦点环、阴影（移动端 + 桌面） */
-*, *::before, *::after {
-  -webkit-tap-highlight-color: transparent !important;
-  tap-highlight-color: transparent !important;
-  outline: none !important;
-  /* box-shadow: none !important;  // 注释这行，让按钮阴影正常反馈 */
+/* 4. 功能性样式 */
+
+/* 隐藏滚动条但保留功能 */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
-/* 聚焦和激活状态保险 */
-*:focus,
-*:focus-visible,
-*:active,
-button:focus,
-button:active,
-input:focus,
-input:active,
-a:focus,
-a:active {
-  outline: none !important;
-  /* box-shadow: none !important;  // 注释，让 hover/active 有反馈 */
-}
-
-/* 链接颜色和下划线彻底控制 */
-a,
-a:link,
-a:visited,
-a:hover,
-a:active,
-a:focus {
-  color: inherit !important;
-  text-decoration: none !important;
-}
-
-/* 额外针对 hover 组和 visited 的保险 */
-.group:hover a,
-a:visited,
-a:hover {
-  color: inherit !important;
-}
-
-/* 全局保险（只控制颜色，不控制背景） */
-* a,
-* a:hover,
-* a:visited,
-* a:focus,
-* a:active {
-  color: currentColor !important;
-}
-
-/* 输入框额外防系统样式（iOS/Android） */
-input, textarea, select, button {
-  -webkit-appearance: none !important;
-  appearance: none !important;
-  border-radius: 0 !important;
-}
-
-/* 防止表单提交或聚焦时页面跳到顶部 */
-form {
-  display: block;
-}
-
-/* Tawk.to 保险规则（保留） */
-.tawk-chat-panel,
-.tawk-widget,
-iframe[src*="tawk.to"],
-.tawk-overlay,
-.tawk-branding {
-  pointer-events: none !important;
-}
-
-.tawk-button,
-.tawk-min-chat-icon,
-.tawk-chat-container {
-  pointer-events: auto !important;
-}
-
-/* 新增：为轮播容器强制允许水平触屏滑动（保险） */
+/* 轮播容器滑动优化 */
 #ig-carousel {
   touch-action: pan-x pinch-zoom !important;
+}
+
+/* 强制全局黑色辅助类：如果组件 text-black 失效，可手动加这个类 */
+.force-black {
+  color: #000000 !important;
 }

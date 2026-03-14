@@ -1,119 +1,240 @@
 'use client';
-import { useState } from 'react';
+
+import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getAuth, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { auth } from '../../../lib/firebase'; // 你的 firebase 路径（或直接用 getAuth()）
+
+// 确保这里的路径指向你项目中正确的 SupabaseProvider
+import { useSupabase } from '../../components/providers/SupabaseProvider';
+
+const schema = z.object({
+  email: z.string().email('Please enter a valid email'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+});
+
+type FormData = z.infer<typeof schema>;
 
 export default function SignInPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false); // 新增：密码显示状态
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
   const router = useRouter();
+  // 统一使用全局 Provider 提供的实例，确保登录后购物车同步
+  const { supabase, session } = useSupabase();
 
-  const handleEmailSignIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      router.push('/');
-    } catch (err: any) {
-      setError('Email or password incorrect');
-    } finally {
-      setLoading(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
+  const [magicMessage, setMagicMessage] = useState<string | null>(null);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    setError,
+    watch,
+  } = useForm<FormData>({
+    resolver: zodResolver(schema),
+  });
+
+  const email = watch('email');
+
+  // 监听登录状态：一旦 Session 建立，立刻刷新服务器组件并跳转
+  useEffect(() => {
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      if (currentSession?.user) {
+        // 刷新页面状态，让顶部的购物车图标能识别到新用户
+        router.refresh();
+        router.push('/');
+      }
+    });
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, [router, supabase]);
+
+  // 邮箱密码登录
+  const onSubmit = async (data: FormData) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email: data.email,
+      password: data.password,
+    });
+    
+    if (error) {
+      setError('root', { message: error.message });
+    } else {
+      // 成功后逻辑会由 useEffect 中的 onAuthStateChange 自动处理
+      router.refresh();
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    setError('');
-    setLoading(true);
-    const provider = new GoogleAuthProvider();
-    try {
-      await signInWithPopup(auth, provider);
-      router.push('/');
-    } catch (err: any) {
-      setError('Google login failed');
-    } finally {
-      setLoading(false);
+  // 第三方登录 (Google / Facebook)
+  const handleOAuth = async (provider: 'google' | 'facebook') => {
+    setLoadingProvider(provider);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { 
+        redirectTo: `${window.location.origin}/auth/callback` 
+      },
+    });
+    
+    if (error) {
+      setError('root', { message: error.message });
+      setLoadingProvider(null);
     }
   };
+
+  // 魔法链接登录
+  const handleMagicLink = async () => {
+    if (!email) {
+      setError('email', { message: 'Please enter your email first' });
+      return;
+    }
+    setLoadingProvider('magic');
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+    });
+    
+    if (error) {
+      setError('root', { message: 'Failed to send magic link' });
+    } else {
+      setMagicMessage('✅ Magic link sent! Check your inbox.');
+    }
+    setLoadingProvider(null);
+  };
+
+  // 如果已有 Session，不渲染登录页
+  if (session?.user) return null;
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center px-6 py-12">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <h1 className="text-4xl md:text-5xl font-thin tracking-widest text-center mb-16 opacity-90">
-          LINJIN<br />LUXURY
-        </h1>
+    <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-6 py-12">
+      <div className="max-w-md w-full">
+        <div className="text-center mb-12">
+          <h1 className="text-white text-7xl font-thin tracking-[6px]">LINJIN</h1>
+          <p className="text-amber-500/70 mt-3 tracking-[4px] text-sm">EST. 2026 • TIMELESS LUXURY</p>
+        </div>
 
-        {/* 标题 */}
-        <h2 className="text-3xl md:text-4xl font-thin tracking-widest text-center mb-12">Sign In</h2>
+        <div className="bg-zinc-900/95 backdrop-blur-xl rounded-3xl p-12 shadow-2xl border border-zinc-800">
+          <div className="flex bg-zinc-800 rounded-2xl p-1 mb-10">
+            <div className="flex-1 text-center py-4 rounded-[14px] font-medium bg-white text-black shadow-sm">
+              Sign In
+            </div>
+            <Link
+              href="/auth/signup"
+              className="flex-1 text-center py-4 rounded-[14px] font-medium text-white hover:bg-zinc-700 transition-all"
+            >
+              Create an Account
+            </Link>
+          </div>
 
-        {/* 错误提示 */}
-        {error && (
-          <p className="text-red-500 text-center mb-8 text-lg">{error}</p>
-        )}
+          <h2 className="text-white text-4xl font-light text-center mb-10 tracking-wide">Sign In</h2>
 
-        {/* 表单 */}
-        <form onSubmit={handleEmailSignIn} className="space-y-12">
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-            required
-            className="w-full bg-transparent border-b-2 border-white/50 text-2xl md:text-3xl font-thin tracking-widest placeholder-white/50 focus:border-white focus:outline-none py-4 transition"
-          />
+          {errors.root && (
+            <div className="bg-red-900/20 border border-red-500/30 text-red-400 text-sm p-4 rounded-2xl mb-8 text-center">
+              {errors.root.message}
+            </div>
+          )}
 
-          {/* 密码输入框 + 眼图标 */}
-          <div className="relative">
-            <input
-              type={showPassword ? 'text' : 'password'}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password"
-              required
-              className="w-full bg-transparent border-b-2 border-white/50 text-2xl md:text-3xl font-thin tracking-widest placeholder-white/50 focus:border-white focus:outline-none py-4 pr-14 transition"
-            />
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+            <div>
+              <label className="text-zinc-400 text-sm block mb-2">Email Address</label>
+              <input
+                {...register('email')}
+                type="email"
+                autoComplete="email"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-6 py-4 text-white placeholder-zinc-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition-all duration-300"
+                placeholder="your@email.com"
+              />
+              {errors.email && <p className="text-red-400 text-xs mt-1.5">{errors.email.message}</p>}
+            </div>
+
+            <div className="relative">
+              <label className="text-zinc-400 text-sm block mb-2">Password</label>
+              <div className="relative">
+                <input
+                  {...register('password')}
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-6 py-4 text-white placeholder-zinc-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition-all duration-300 pr-12"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-6 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white transition"
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+              {errors.password && <p className="text-red-400 text-xs mt-1.5">{errors.password.message}</p>}
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full bg-white hover:bg-zinc-100 active:scale-[0.985] text-black font-medium tracking-widest py-4 rounded-2xl transition-all duration-300 disabled:opacity-50"
+            >
+              {isSubmitting ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="animate-spin" size={20} /> Signing in...
+                </span>
+              ) : (
+                'SIGN IN'
+              )}
+            </button>
+
+            <div className="text-left mt-1 pl-1">
+              {/* 修复后的 Link 标签 */}
+              <Link 
+                href="/auth/forgot-password" 
+                className="text-white hover:text-amber-400 text-sm transition"
+              >
+                Forgot Password?
+              </Link>
+            </div>
+          </form>
+
+          <div className="mt-8 relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-zinc-700" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-zinc-900 px-6 text-zinc-500">or continue with</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 mt-8">
             <button
               type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-0 top-1/2 -translate-y-1/2 text-white/70 hover:text-white transition"
+              onClick={() => handleOAuth('google')}
+              className="flex items-center justify-center gap-3 bg-white hover:bg-zinc-100 active:scale-[0.985] text-black border border-zinc-300 rounded-2xl py-3 transition-all duration-300 font-medium text-[15px]"
             >
-              <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'} text-2xl`}></i>
+              {loadingProvider === 'google' ? <Loader2 className="animate-spin" size={20} /> : <span className="font-bold text-lg">G</span>}
+              <span>Google</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleOAuth('facebook')}
+              className="flex items-center justify-center gap-3 bg-[#1877F2] hover:bg-[#166FE5] active:scale-[0.985] text-white rounded-2xl py-3 transition-all duration-300 font-medium text-[15px]"
+            >
+              {loadingProvider === 'facebook' ? <Loader2 className="animate-spin" size={20} /> : <span className="font-bold text-lg">f</span>}
+              <span>Facebook</span>
             </button>
           </div>
 
           <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-white text-black text-xl md:text-2xl uppercase tracking-widest py-6 hover:bg-gray-200 transition font-medium disabled:opacity-50"
+            type="button"
+            onClick={handleMagicLink}
+            disabled={loadingProvider === 'magic'}
+            className="mt-6 w-full flex items-center justify-center gap-3 border border-zinc-600 hover:border-amber-400 text-white py-3 rounded-2xl transition-all duration-300 disabled:opacity-50 font-light text-[15px]"
           >
-            {loading ? 'Signing In...' : 'Sign In'}
+            {loadingProvider === 'magic' ? <Loader2 className="animate-spin" size={20} /> : '✉️ Magic Link'}
           </button>
-        </form>
-
-        {/* Google 登录 */}
-        <div className="mt-12">
-          <button
-            onClick={handleGoogleSignIn}
-            disabled={loading}
-            className="w-full border border-white text-xl md:text-2xl uppercase tracking-widest py-6 hover:bg-white/10 transition"
-          >
-            Continue with Google
-          </button>
+          {magicMessage && <p className="text-green-400 text-sm mt-2 text-center">{magicMessage}</p>}
         </div>
-
-        {/* 注册链接 */}
-        <p className="text-center mt-12 text-lg opacity-80">
-          New to Linjin Luxury?{' '}
-          <Link href="/auth/signup" className="underline hover:opacity-60">
-            Create Account
-          </Link>
-        </p>
       </div>
     </div>
   );

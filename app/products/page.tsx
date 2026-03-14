@@ -1,36 +1,76 @@
 'use client';
+
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, limit, startAfter, where, orderBy } from 'firebase/firestore';
-import { db } from '../../lib/firebase'; // 你的 firebase path
+import { request, gql } from 'graphql-request';
 import Image from 'next/image';
 import Link from 'next/link';
 
+const HYGRAPH_ENDPOINT = process.env.NEXT_PUBLIC_HYGRAPH_ENDPOINT!;
+const HYGRAPH_TOKEN = process.env.HYGRAPH_TOKEN; // 如果需要
+
+const GET_PRODUCTS = gql`
+  query GetProducts($first: Int!, $after: String) {
+    products(first: $first, after: $after, orderBy: name_ASC, stage: PUBLISHED) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        id
+        name
+        price
+        colors
+        images {
+          url
+        }
+        colorImages
+      }
+    }
+  }
+`;
+
 export default function ProductsPage() {
-  const [allProducts, setAllProducts] = useState<any[]>([]); // 所有加载的产品
+  const [allProducts, setAllProducts] = useState<any[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedColor, setSelectedColor] = useState('all');
   const [priceRange, setPriceRange] = useState('all');
-  const [lastDoc, setLastDoc] = useState<any>(null);
+  const [lastCursor, setLastCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
 
-  // 初始加载 + 分页
+  // 分页加载
   const fetchProducts = async (isLoadMore = false) => {
     if (!hasMore && isLoadMore) return;
     setLoading(true);
+
     try {
-      let q = query(collection(db, 'products'), orderBy('name'), limit(20));
-      if (isLoadMore && lastDoc) {
-        q = query(collection(db, 'products'), orderBy('name'), startAfter(lastDoc), limit(20));
+      const variables = {
+        first: 20,
+        after: isLoadMore ? lastCursor : null,
+      };
+
+      const headers: HeadersInit = {};
+      if (HYGRAPH_TOKEN) {
+        headers.Authorization = `Bearer ${HYGRAPH_TOKEN}`;
       }
-      const snapshot = await getDocs(q);
-      const newProducts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setAllProducts(isLoadMore ? [...allProducts, ...newProducts] : newProducts);
-      setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
-      setHasMore(snapshot.docs.length === 20);
+
+      const data = await request(HYGRAPH_ENDPOINT, GET_PRODUCTS, variables, headers);
+
+      const newProducts = data.products.nodes.map((node: any) => ({
+        id: node.id,
+        name: node.name,
+        price: node.price,
+        colors: node.colors || [],
+        images: node.images?.map((img: any) => img.url) || [],
+        colorImages: node.colorImages || null, // 假设是对象 {color: [url,...]}
+      }));
+
+      setAllProducts(prev => isLoadMore ? [...prev, ...newProducts] : newProducts);
+      setLastCursor(data.products.pageInfo.endCursor);
+      setHasMore(data.products.pageInfo.hasNextPage);
     } catch (error) {
-      console.error(error);
+      console.error('Hygraph fetch error:', error);
     } finally {
       setLoading(false);
     }
@@ -40,37 +80,34 @@ export default function ProductsPage() {
     fetchProducts();
   }, []);
 
-  // 实时搜索 + 过滤
+  // 客户端过滤（与原来一致）
   useEffect(() => {
     let filtered = allProducts;
 
-    // 搜索名称
     if (searchTerm) {
-      filtered = filtered.filter(p => 
+      filtered = filtered.filter(p =>
         p.name?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
-    // 过滤颜色（从 colors 数组匹配）
     if (selectedColor !== 'all') {
-      filtered = filtered.filter(p => 
+      filtered = filtered.filter(p =>
         p.colors?.some((c: string) => c.toLowerCase() === selectedColor.toLowerCase())
       );
     }
 
-    // 过滤价格范围
     if (priceRange !== 'all') {
       const [min, max] = priceRange.split('-').map(Number);
       filtered = filtered.filter(p => {
-        const price = Number(p.price?.replace(/[^0-9.-]+/g,"") || 0);
-        return price >= min && (max ? price <= max : true);
+        const price = Number(p.price?.replace(/[^0-9.-]+/g, "") || 0);
+        return price >= min && (!max || price <= max);
       });
     }
 
     setFilteredProducts(filtered);
   }, [allProducts, searchTerm, selectedColor, priceRange]);
 
-  // 获取所有可用颜色（动态从产品提取）
+  // 动态颜色选项
   const availableColors = Array.from(new Set(allProducts.flatMap(p => p.colors || [])));
 
   return (
@@ -82,7 +119,6 @@ export default function ProductsPage() {
 
         {/* 搜索 + 过滤栏 */}
         <div className="flex flex-col md:flex-row gap-8 mb-16">
-          {/* 搜索框 */}
           <input
             type="text"
             placeholder="Search products..."
@@ -91,7 +127,6 @@ export default function ProductsPage() {
             className="flex-1 px-8 py-4 border-2 border-gray-300 uppercase tracking-widest text-lg focus:border-black outline-none"
           />
 
-          {/* 颜色过滤 */}
           <select
             value={selectedColor}
             onChange={(e) => setSelectedColor(e.target.value)}
@@ -103,7 +138,6 @@ export default function ProductsPage() {
             ))}
           </select>
 
-          {/* 价格范围过滤 */}
           <select
             value={priceRange}
             onChange={(e) => setPriceRange(e.target.value)}
@@ -125,7 +159,11 @@ export default function ProductsPage() {
               <Link key={product.id} href={`/product/${product.id}`} className="group">
                 <div className="relative overflow-hidden rounded-xl shadow-2xl aspect-[3/4]">
                   <Image
-                    src={product.colorImages?.[Object.keys(product.colorImages || {})[0]]?.[0] || product.images?.[0] || '/images/placeholder.jpg'}
+                    src={
+                      product.colorImages && Object.keys(product.colorImages).length > 0
+                        ? product.colorImages[Object.keys(product.colorImages)[0]][0]
+                        : product.images?.[0] || '/images/placeholder.jpg'
+                    }
                     alt={product.name}
                     fill
                     sizes="(max-width: 768px) 50vw, 25vw"
@@ -142,7 +180,7 @@ export default function ProductsPage() {
           </div>
         )}
 
-        {/* Load More 按钮 */}
+        {/* Load More */}
         {hasMore && !loading && (
           <button
             onClick={() => fetchProducts(true)}

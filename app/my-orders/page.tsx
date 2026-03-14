@@ -4,132 +4,308 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getAuth } from "firebase/auth";
-import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { toast } from 'sonner';
+import { createBrowserClient } from '@supabase/ssr';
+import { 
+  Package, 
+  Clock, 
+  CheckCircle2, 
+  Truck, 
+  ExternalLink,
+  ShoppingBag,
+  Download,
+  AlertCircle,
+  X,
+  Upload
+} from 'lucide-react';
 
 export default function MyOrdersPage() {
   const router = useRouter();
-  const auth = getAuth();
-  const currentUser = auth.currentUser;
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // 退款弹窗状态
+  const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [refundReason, setRefundReason] = useState('Size mismatch');
+  const [refundDesc, setRefundDesc] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!currentUser) {
-      router.push('/auth/signin');
-      return;
-    }
-
-    const q = query(collection(db, "orders"), where("user_id", "==", currentUser.uid));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list: any[] = [];
-      snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
-      setOrders(list.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
-      setLoading(false);
+    let channel: any = null;
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Please sign in to view orders');
+        router.push('/auth/signin');
+        return;
+      }
+      await loadOrders(session.user.id);
+      
+      channel = supabase
+        .channel(`orders-${session.user.id}`)
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'orders', 
+          filter: `user_id=eq.${session.user.id}` 
+        }, () => loadOrders(session.user.id))
+        .subscribe();
+    };
+    init();
+    
+    const { data: authListener } = supabase.auth.onAuthStateChange((_, session) => {
+      if (!session) router.push('/auth/signin');
     });
+    
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+      authListener.subscription.unsubscribe();
+    };
+  }, [supabase, router]);
 
-    return () => unsubscribe();
-  }, [currentUser, router]);
+  const loadOrders = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error(error);
+      toast.error('Failed to load orders');
+    } else {
+      setOrders(data || []);
+    }
+    setLoading(false);
+  };
 
-  // 状态颜色（可选美化）
-  const getStatusColor = (status: string = 'processing') => {
+  // 提交退款申请
+  const submitRefundRequest = async () => {
+    if (!selectedOrderId) return;
+    setIsSubmitting(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      // 1. 在 refund_requests 表中创建记录
+      const { error: requestError } = await supabase
+        .from('refund_requests')
+        .insert({
+          order_id: selectedOrderId,
+          user_id: user.id,
+          reason: refundReason,
+          description: refundDesc,
+          images: [] // 这里可以后续扩展图片上传逻辑
+        });
+
+      if (requestError) throw requestError;
+
+      // 2. 更新订单状态为 refund_pending
+      const { error: orderError } = await supabase
+        .from('orders')
+        .update({ status: 'refund_pending' })
+        .eq('id', selectedOrderId);
+
+      if (orderError) throw orderError;
+
+      toast.success("Return request submitted successfully");
+      setIsRefundModalOpen(false);
+      loadOrders(user.id);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to submit request");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDownloadInvoice = (orderId: string) => {
+    window.print();
+  };
+
+  const getStatusInfo = (status: string = 'paid') => {
     switch (status.toLowerCase()) {
-      case 'processing': return 'text-orange-600';
-      case 'shipped': return 'text-blue-600';
-      case 'delivered': return 'text-green-600';
-      default: return 'text-gray-600';
+      case 'paid': return { label: 'Paid', color: 'text-green-600', icon: <CheckCircle2 className="w-4 h-4" /> };
+      case 'processing': return { label: 'Processing', color: 'text-zinc-500', icon: <Clock className="w-4 h-4" /> };
+      case 'shipped': return { label: 'Shipped', color: 'text-blue-600', icon: <Truck className="w-4 h-4" /> };
+      case 'delivered': return { label: 'Delivered', color: 'text-black', icon: <Package className="w-4 h-4" /> };
+      case 'refund_pending': return { label: 'Return Review', color: 'text-orange-600', icon: <AlertCircle className="w-4 h-4" /> };
+      case 'refunded': return { label: 'Refunded', color: 'text-zinc-400', icon: <CheckCircle2 className="w-4 h-4" /> };
+      default: return { label: status, color: 'text-zinc-400', icon: <Clock className="w-4 h-4" /> };
     }
   };
 
-  // 物流跟踪链接（修复：返回 undefined 而不是 null，避免 TypeScript 类型错误）
-  const getTrackingLink = (trackingNumber?: string): string | undefined => {
-    if (!trackingNumber) return undefined;
-
-    const num = trackingNumber.trim();
-
-    if (num.length === 22 || /^9[245]/.test(num)) {
-      return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${num}`;
-    }
-
-    if (/^1Z/i.test(num) && num.length === 18) {
-      return `https://www.ups.com/track?loc=en_US&tracknum=${num}`;
-    }
-
-    return `https://www.fedex.com/fedextrack/?trknbr=${num}`;
+  const getTrackingLink = (num?: string) => {
+    if (!num) return undefined;
+    const cleanNum = num.trim();
+    if (cleanNum.length === 22 || /^9[245]/.test(cleanNum)) return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${cleanNum}`;
+    if (/^1Z/i.test(cleanNum) && cleanNum.length === 18) return `https://www.ups.com/track?loc=en_US&tracknum=${cleanNum}`;
+    return `https://www.fedex.com/fedextrack/?trknbr=${cleanNum}`;
   };
 
-  if (loading) return <div className="min-h-screen bg-white flex items-center justify-center text-2xl">Loading orders...</div>;
-
-  if (orders.length === 0) {
-    return <div className="min-h-screen bg-white text-center py-32">
-      <h2 className="text-4xl uppercase tracking-widest mb-12">No Orders Yet</h2>
-      <Link href="/" className="text-xl uppercase tracking-widest">Start Shopping</Link>
-    </div>;
-  }
+  if (loading) return (
+    <div className="min-h-screen bg-white flex flex-col items-center justify-center">
+      <div className="w-8 h-8 border-2 border-zinc-100 border-t-black rounded-full animate-spin mb-4" />
+      <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-400 font-bold">Authenticating</p>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-white py-16 md:py-24">
-      <div className="max-w-7xl mx-auto px-6">
-        <h1 className="text-5xl uppercase tracking-widest text-center mb-16">My Orders</h1>
-        <div className="space-y-16">
-          {orders.map((order: any) => (
-            <details key={order.id} className="bg-gray-50 p-12 rounded-2xl cursor-pointer group">
-              <summary className="flex justify-between items-center mb-8 list-none">
-                <div>
-                  <p className="text-xl">
-                    Order {order.order_number || order.id.slice(0, 8).toUpperCase()}
-                  </p>
-                  <p className={`text-lg font-bold ${getStatusColor(order.status)}`}>
-                    {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Processing'}
-                  </p>
-                </div>
-                <p className="text-xl">{new Date(order.created_at.seconds * 1000).toLocaleDateString()}</p>
-              </summary>
+    <div className="min-h-screen bg-white py-20 md:py-32">
+      <style jsx global>{`
+        @media print {
+          nav, footer, .no-print, button, .modal { display: none !important; }
+          .print-area { padding: 0 !important; margin: 0 !important; }
+          .order-card { border: none !important; page-break-after: always; }
+          body { background: white; }
+        }
+      `}</style>
 
-              {/* 商品列表 */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {order.items.map((item: any, idx: number) => (
-                  <div key={idx} className="flex gap-6">
-                    <Image src={item.image} alt={item.name} width={200} height={300} className="rounded-xl object-cover" />
-                    <div>
-                      <p className="text-2xl">{item.name}</p>
-                      <p>Color: {item.color} • Size: {item.size}</p>
-                      <p>Quantity: {item.quantity} • ${item.price}</p>
+      {/* 退款申请弹窗 (Modal) */}
+      {isRefundModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 modal">
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-sm" onClick={() => setIsRefundModalOpen(false)} />
+          <div className="relative bg-white w-full max-w-lg p-10 animate-in fade-in zoom-in duration-300">
+            <button onClick={() => setIsRefundModalOpen(false)} className="absolute top-6 right-6 hover:rotate-90 transition-transform">
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="text-2xl font-black italic uppercase tracking-tighter mb-2">Request Return</h2>
+            <p className="text-[10px] text-zinc-400 uppercase tracking-[0.2em] mb-10">LINJIN LUXURY Concierge Service</p>
+            
+            <div className="space-y-6">
+              <div>
+                <label className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 block mb-3">Reason for Return</label>
+                <select 
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                  className="w-full border-b border-zinc-200 py-3 text-xs uppercase font-bold tracking-widest focus:outline-none focus:border-black transition-colors bg-transparent cursor-pointer"
+                >
+                  <option>Size mismatch</option>
+                  <option>Changed my mind</option>
+                  <option>Item defective</option>
+                  <option>Wrong item received</option>
+                  <option>Quality not as expected</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 block mb-3">Additional Details</label>
+                <textarea 
+                  value={refundDesc}
+                  onChange={(e) => setRefundDesc(e.target.value)}
+                  placeholder="Please describe the issue..."
+                  className="w-full border border-zinc-100 p-4 text-xs min-h-[120px] focus:outline-none focus:border-black transition-colors"
+                />
+              </div>
+
+              <button 
+                disabled={isSubmitting}
+                onClick={submitRefundRequest}
+                className="w-full bg-black text-white py-5 text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-zinc-800 transition-all disabled:opacity-50"
+              >
+                {isSubmitting ? 'Processing...' : 'Submit Request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-5xl mx-auto px-6 print-area">
+        <div className="text-center mb-24 no-print">
+          <h1 className="text-5xl md:text-7xl font-black italic uppercase tracking-tighter mb-4 text-black">My Orders</h1>
+          <p className="text-zinc-400 uppercase text-[10px] tracking-[0.5em] font-medium">Order History & Invoices</p>
+        </div>
+
+        <div className="space-y-32">
+          {orders.map((order: any) => {
+            const statusInfo = getStatusInfo(order.status);
+            const total = Number(order.total || 0);
+            const tax = Number(order.tax || 0);
+            const shipping = Number(order.shipping_cost || 0);
+            const subtotal = total - tax - shipping;
+
+            return (
+              <div key={order.id} className="order-card group">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-black pb-6 mb-10 gap-6">
+                  <div className="space-y-2">
+                    <p className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold">Order Reference</p>
+                    <p className="font-mono text-sm font-bold text-black uppercase">{order.order_number || `ORD-${order.id.slice(0, 8).toUpperCase()}`}</p>
+                  </div>
+                  
+                  <div className="flex items-center gap-10">
+                    <button onClick={() => handleDownloadInvoice(order.id)} className="no-print flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-black transition-colors">
+                       <Download className="w-3 h-3" /> Invoice
+                    </button>
+                    <div className="text-right">
+                      <p className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold">Status</p>
+                      <div className={`flex items-center gap-2 mt-1 text-xs font-bold uppercase tracking-widest ${statusInfo.color}`}>
+                        {statusInfo.icon} {statusInfo.label}
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
 
-              {/* 跟踪信息 */}
-              <div className="mt-12 pt-8 border-t border-gray-300 space-y-4 text-lg">
-                <p><span className="font-bold">Total:</span> ${order.total.toFixed(2)}</p>
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-12">
+                  <div className="md:col-span-8 space-y-10">
+                    {order.items?.map((item: any, idx: number) => (
+                      <div key={idx} className="flex gap-8 items-center">
+                        <div className="w-20 h-28 relative bg-zinc-50 overflow-hidden">
+                          <Image src={item.image} alt={item.name} fill className="object-cover grayscale" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-sm font-bold uppercase tracking-wider mb-2 text-black">{item.name}</h3>
+                          <p className="text-[10px] text-zinc-400 uppercase tracking-[0.2em]">QTY: {item.quantity} / SIZE: {item.size}</p>
+                        </div>
+                        <div className="text-sm font-bold font-mono text-black">${(item.price * item.quantity).toFixed(2)}</div>
+                      </div>
+                    ))}
+                  </div>
 
-                {(order.tracking_number || order.estimated_delivery) ? (
-                  <>
-                    {order.tracking_number && (
-                      <p>
-                        <span className="font-bold">Tracking Number:</span> {order.tracking_number}
-                        <a 
-                          href={getTrackingLink(order.tracking_number) ?? '#'}  // 修复类型错误：加 ?? '#' fallback
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="ml-4 text-blue-600 underline hover:text-blue-800"
-                        >
-                          Track Package →
-                        </a>
-                      </p>
-                    )}
-                    {order.estimated_delivery && (
-                      <p><span className="font-bold">Estimated Delivery:</span> {new Date(order.estimated_delivery).toLocaleDateString()}</p>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-gray-600 italic">Your order is being prepared. Tracking information will be available once shipped.</p>
-                )}
+                  <div className="md:col-span-4">
+                    <div className="bg-zinc-50 p-8 border border-zinc-100">
+                      <h4 className="text-[10px] font-bold uppercase tracking-[0.3em] border-b border-zinc-200 pb-4 mb-6 text-zinc-400">Financial Summary</h4>
+                      <div className="space-y-4 mb-8">
+                        <div className="flex justify-between text-[11px] uppercase tracking-widest text-zinc-500">
+                          <span>Subtotal</span>
+                          <span className="text-black">${subtotal.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-[11px] uppercase tracking-widest text-zinc-500">
+                          <span>Shipping</span>
+                          <span className="text-black italic">{shipping === 0 ? 'Complimentary' : `$${shipping.toFixed(2)}`}</span>
+                        </div>
+                        <div className="flex justify-between text-xs font-black uppercase tracking-[0.2em] pt-5 border-t border-zinc-200 text-black">
+                          <span>Grand Total</span>
+                          <span>${total.toFixed(2)}</span>
+                        </div>
+                      </div>
+
+                      <div className="no-print">
+                        {order.status === 'paid' && (
+                          <button 
+                            onClick={() => { setSelectedOrderId(order.id); setIsRefundModalOpen(true); }}
+                            className="w-full py-4 border border-zinc-200 text-[10px] uppercase tracking-widest font-bold text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-all"
+                          >
+                            Request a Return
+                          </button>
+                        )}
+                        {order.status === 'refund_pending' && (
+                          <div className="flex items-center justify-center gap-2 py-4 bg-zinc-100 text-[9px] uppercase tracking-widest font-bold text-zinc-500">
+                            <AlertCircle className="w-3 h-3 text-orange-500" /> Under Review
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </details>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

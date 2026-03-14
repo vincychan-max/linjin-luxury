@@ -3,151 +3,182 @@
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { collection, query, where, orderBy, startAfter, limit, getDocs } from "firebase/firestore";
-import { db } from '@/lib/firebase';
 
+// 定义产品类型，与 API 返回的 nodes 结构保持一致
 type Product = {
   id: string;
-  name: string;  
+  name: string;
+  slug: string;
   price: number;
   images: string[];
-  // 加你的其他字段，比如 description, category 等
+  stock?: number;
+  isNew?: boolean;
+  isLimited?: boolean;
+  gender?: string;
+  subCategory?: string;
 };
 
-interface Props {
+interface ProductGridProps {
   initialProducts: Product[];
-  initialLastCreatedAt: any;
-  category?: string;
-  gender?: string;
+  initialEndCursor?: string | null;
+  category: string | null; // 对应 API 的 category (slug)
+  gender: string | null;   // 对应 API 的 mainCategory (slug)
 }
 
-export default function ProductGrid({ initialProducts, initialLastCreatedAt, category, gender }: Props) {
+const PAGE_SIZE = 12;
+
+export default function ProductGrid({ 
+  initialProducts, 
+  initialEndCursor = null, 
+  category, 
+  gender 
+}: ProductGridProps) {
   const [products, setProducts] = useState<Product[]>(initialProducts);
-  const [lastCreatedAt, setLastCreatedAt] = useState<any>(initialLastCreatedAt);
+  const [cursor, setCursor] = useState<string | null>(initialEndCursor);
   const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+  const [hasMore, setHasMore] = useState(initialProducts.length >= PAGE_SIZE);
+  const [error, setError] = useState<string | null>(null);
 
-  const observer = useRef<IntersectionObserver | null>(null);
-  const lastProductRef = useRef<HTMLDivElement>(null);
+  const observerTarget = useRef<HTMLDivElement>(null);
 
+  // 核心逻辑：调用 API 路由进行分页
   const loadMore = async () => {
-    if (loading || !hasMore || !lastCreatedAt) return;
+    if (loading || !hasMore || !cursor) return;
     setLoading(true);
-
-    let q = query(
-      collection(db, 'products'),
-      orderBy('created_at', 'desc'),
-      startAfter(lastCreatedAt),
-      limit(12)
-    );
-
-    if (category) q = query(q, where('category', '==', category));
-    if (gender) q = query(q, where('gender', '==', gender));
+    setError(null);
 
     try {
-      const snapshot = await getDocs(q);
-      const newProducts = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          name: data.name || 'Untitled',
-          price: Number(data.price) || 0,
-          images: data.images || [],
-        } as Product;
+      // 对齐 API Route 的参数名：mainCategory 和 category
+      const queryParams = new URLSearchParams({
+        after: cursor,
+        mainCategory: gender || '',
+        category: category || '',
+        limit: PAGE_SIZE.toString(),
       });
 
-      setProducts(prev => [...prev, ...newProducts]);
-      setLastCreatedAt(snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1].data().created_at : null);
-      setHasMore(snapshot.docs.length === 12);
-    } catch (error) {
-      console.error('Load more products error:', error);
+      const res = await fetch(`/api/products?${queryParams.toString()}`);
+      
+      if (!res.ok) throw new Error('Failed to fetch from API');
+      
+      const data = await res.json();
+
+      if (data.nodes && data.nodes.length > 0) {
+        const newProducts = data.nodes.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          slug: p.slug,
+          price: p.price,
+          // 处理 Hygraph 返回的 images 对象数组
+          images: p.images?.map((img: { url: string }) => img.url) || [],
+          isNew: p.isNew,
+          isLimited: p.isLimited,
+        }));
+
+        setProducts(prev => [...prev, ...newProducts]);
+        setHasMore(data.pageInfo.hasNextPage);
+        setCursor(data.pageInfo.endCursor);
+      } else {
+        setHasMore(false);
+      }
+    } catch (err) {
+      console.error('Infinite scroll error:', err);
+      setError('Could not load more products.');
     } finally {
       setLoading(false);
     }
   };
 
+  // 监听滚动
   useEffect(() => {
-    if (observer.current) observer.current.disconnect();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loading) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1, rootMargin: '400px' } // 提前 400px 开始加载，体验更顺滑
+    );
 
-    observer.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore && !loading) {
-        loadMore();
-      }
-    });
+    if (observerTarget.current) observer.observe(observerTarget.current);
+    return () => observer.disconnect();
+  }, [cursor, hasMore, loading]);
 
-    if (lastProductRef.current) observer.current.observe(lastProductRef.current);
-
-    return () => {
-      if (observer.current) observer.current.disconnect();
-    };
-  }, [lastCreatedAt, hasMore, loading]);
-
-  // 空状态处理（尤其是 men 分类目前无产品时友好提示）
+  // 空状态展示
   if (products.length === 0) {
-    const isMen = gender === 'men';
     return (
-      <div className="text-center py-32">
-        <h2 className="text-5xl md:text-7xl font-bold tracking-widest uppercase mb-8 opacity-80">
-          {isMen ? "Men's Collection Coming Soon" : "No Products Found"}
+      <div className="text-center py-40 bg-white">
+        <h2 className="text-[11px] font-bold tracking-[0.4em] uppercase text-black mb-4">
+          Collection Coming Soon
         </h2>
-        <p className="text-xl md:text-2xl tracking-wider opacity-70 max-w-2xl mx-auto">
-          {isMen 
-            ? "Stay tuned for our premium men's accessories curated from Los Angeles. Exclusive pieces arriving soon."
-            : "Try adjusting your filters or check back later for new arrivals."
-          }
+        <p className="text-[10px] tracking-widest text-black/40 uppercase">
+          Exclusive pieces arriving shortly from our studio.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-6 pb-32">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-12 lg:gap-20 justify-items-center">
-        {products.map((product, index) => {
-          const priceValue = typeof product.price === 'number' ? product.price : Number(product.price) || 0;
-          const displayImage = product.images?.[0] || '/images/placeholder.jpg';
-
-          return (
-            <div
-              key={product.id}
-              ref={index === products.length - 1 ? lastProductRef : null}
-              className="group block max-w-sm w-full"
-            >
-              <Link href={`/product/${product.id}`}>
-                <div className="relative aspect-[4/5] overflow-hidden bg-gray-100 rounded-3xl shadow-2xl mb-10">
-                  <Image
-                    src={displayImage}
-                    alt={product.name}
-                    fill
-                    sizes="(max-width: 768px) 45vw, 25vw"
-                    placeholder="blur"
-                    blurDataURL="/images/placeholder-blur.jpg"
-                    className="object-cover group-hover:scale-105 transition-transform duration-700"
-                  />
-                </div>
-                <h3 className="text-2xl md:text-3xl font-semibold tracking-widest text-center">
+    <div className="bg-white">
+      {/* 产品展示网格 */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-16 md:gap-y-24">
+        {products.map((product, index) => (
+          <article 
+            key={product.id}
+            className="group"
+          >
+            <Link href={`/product/${product.slug}`} className="block">
+              {/* 图片容器：无灰色遮罩，极简白/浅灰背景 */}
+              <div className="relative aspect-[3/4] overflow-hidden bg-[#FBFBFB] mb-8">
+                <Image
+                  src={product.images?.[0] || '/images/placeholder.jpg'}
+                  alt={product.name}
+                  fill
+                  sizes="(max-width: 768px) 50vw, 25vw"
+                  className="object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-105"
+                />
+                {/* 标签：如有需要可开启 */}
+                {product.isNew && (
+                  <span className="absolute top-4 left-4 text-[9px] font-bold tracking-tighter uppercase bg-black text-white px-2 py-1">
+                    New
+                  </span>
+                )}
+              </div>
+              
+              {/* 文字详情：纯黑、放大 [11px] */}
+              <div className="text-center px-4">
+                <h3 className="text-[11px] font-bold tracking-[0.2em] uppercase text-black mb-3 leading-tight">
                   {product.name}
                 </h3>
-                <p className="mt-4 text-3xl md:text-4xl font-bold text-center">
-                  ${priceValue.toLocaleString('en-US', { minimumFractionDigits: 0 })}
+                <p className="text-[12px] font-medium tracking-[0.1em] text-black">
+                  ${Number(product.price).toLocaleString('en-US')}
                 </p>
-              </Link>
-            </div>
-          );
-        })}
+              </div>
+            </Link>
+          </article>
+        ))}
       </div>
 
-      {loading && (
-        <div className="text-center mt-24">
-          <p className="text-2xl tracking-widest uppercase opacity-70">Loading more...</p>
-        </div>
-      )}
-
-      {!hasMore && products.length > 0 && (
-        <div className="text-center mt-24">
-          <p className="text-xl tracking-widest uppercase opacity-70">No more products</p>
-        </div>
-      )}
+      {/* 底部加载触发点 & 状态提示 */}
+      <div ref={observerTarget} className="mt-32 py-12 text-center border-t border-black/5">
+        {loading && (
+          <p className="text-[10px] font-bold uppercase tracking-[0.5em] text-black animate-pulse">
+            Loading...
+          </p>
+        )}
+        {!hasMore && products.length > 0 && (
+          <p className="text-[10px] font-bold uppercase tracking-[0.5em] text-black/20">
+            End of Line
+          </p>
+        )}
+        {error && (
+          <button 
+            onClick={() => loadMore()}
+            className="text-[10px] font-bold uppercase tracking-widest border-b border-black pb-1"
+          >
+            Retry Loading
+          </button>
+        )}
+      </div>
     </div>
   );
 }

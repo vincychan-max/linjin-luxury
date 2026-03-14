@@ -4,6 +4,14 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import PayPalProvider from './components/PayPalProvider';
 import Script from 'next/script';
+import { SupabaseProvider } from './components/providers/SupabaseProvider';
+
+// ✅ 1. 引入必要组件
+import CartDrawer from './components/cart/CartDrawer'; 
+import { Toaster } from 'react-hot-toast'; 
+
+// 新增：引入 Google Analytics 和 Tag Manager 组件
+import { GoogleAnalytics, GoogleTagManager } from '@next/third-parties/google';
 
 export const metadata: Metadata = {
   title: {
@@ -50,26 +58,47 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+        <link 
+          rel="stylesheet" 
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" 
+          integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" 
+          crossOrigin="anonymous" 
+          referrerPolicy="no-referrer" 
+        />
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
         
-        {/* 预加载 Hero 主图，提升 LCP */}
-        <link rel="preload" as="image" href="/images/hero-main.jpg" />
-
-        {/* 预加载关键字体（如果有自定义字体，可加） */}
-        {/* <link rel="preload" as="style" href="/fonts/your-font.css" /> */}
-
-        {/* Favicon（建议加） */}
+        {/* Favicon */}
         <link rel="icon" href="/favicon.ico" />
       </head>
       <body className="m-0 p-0 bg-black text-white min-h-screen flex flex-col">
-        <PayPalProvider>
-          <Header />
-          <main className="flex-1">
-            {children}
-          </main>
-          <Footer />
-        </PayPalProvider>
+        {/* SupabaseProvider 包裹最外层 */}
+        <SupabaseProvider>
+          <PayPalProvider>
+            <Header />
+            <main className="flex-1">
+              {children}
+            </main>
+            <Footer />
+
+            {/* ✅ 2. 核心：购物车侧边栏（由 useCart 控制显示） */}
+            <CartDrawer />
+
+            {/* ✅ 3. 核心：全局提示框（解决 Add to Bag 反馈问题） */}
+            <Toaster 
+              position="bottom-center"
+              toastOptions={{
+                duration: 3000,
+                style: {
+                  background: '#333',
+                  color: '#fff',
+                  fontSize: '12px',
+                  borderRadius: '0px', // 配合你的极简大牌风
+                },
+              }} 
+            />
+            
+          </PayPalProvider>
+        </SupabaseProvider>
 
         {/* Tawk.to 客服脚本 */}
         <Script id="tawkto-script" strategy="afterInteractive">
@@ -85,6 +114,12 @@ export default function RootLayout({
             })();
           `}
         </Script>
+
+        {/* 新增：Google Analytics (GA4) */}
+        <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_ID || ''} />
+
+        {/* 新增：Google Tag Manager (GTM) - 如果有 GTM ID，否则可移除 */}
+        <GoogleTagManager gtmId={process.env.NEXT_PUBLIC_GTM_ID || ''} />
       </body>
     </html>
   );
