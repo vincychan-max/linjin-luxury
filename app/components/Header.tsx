@@ -273,15 +273,16 @@ const mainMenuItems = [
   { label: 'World of LJL', href: '/world-of-ljl' },
 ];
 
-// 新增：错误边界 fallback 组件
+/// 新增：错误边界 fallback 组件
 const ErrorFallback = ({ error, resetErrorBoundary }: FallbackProps) => (
   <div role="alert" className="text-red-500 p-4">
     <p>Something went wrong in the header:</p>
-    <pre>{(error as Error).message}</pre> // 修改：显式转换为 Error 类型
+    <pre>{(error as Error).message}</pre>
+    {/* 修复：将注释放入花括号内，或直接删除 */}
     <button onClick={resetErrorBoundary}>Try again</button>
   </div>
 );
-ErrorFallback.displayName = 'ErrorFallback'; // 添加 displayName 修复 ESLint 报错
+ErrorFallback.displayName = 'ErrorFallback';
 
 // 新增：提取菜单抽屉组件以提升维护性
 const MenuDrawer = React.memo(({ menuOpen, menuLevel, currentSecondary, currentTertiary, closeAllMenus, openSecondary, openTertiary, backToMain, backToSecondary, swipeHandlers }: {
