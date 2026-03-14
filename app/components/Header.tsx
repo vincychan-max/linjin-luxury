@@ -8,7 +8,7 @@ import { useCart } from '../../lib/cartStore';
 import { supabase } from '@/lib/supabase';
 import { useSupabase } from '../components/providers/SupabaseProvider';
 import { useSwipeable } from 'react-swipeable';
-import { ErrorBoundary, FallbackProps } from 'react-error-boundary'; // 新增：错误边界，确保已安装 npm install react-error-boundary
+import { ErrorBoundary, type FallbackProps } from 'react-error-boundary'; // 新增：错误边界，确保已安装 npm install react-error-boundary
 
 type SubItem = { label: string; href: string };
 type SecondaryItem = { label: string; href?: string; sub?: SubItem[] };
@@ -277,10 +277,11 @@ const mainMenuItems = [
 const ErrorFallback = ({ error, resetErrorBoundary }: FallbackProps) => (
   <div role="alert" className="text-red-500 p-4">
     <p>Something went wrong in the header:</p>
-    <pre>{(error as Error).message}</pre> {/* 修改：显式类型转换 unknown 为 Error */}
+    <pre>{(error as Error).message}</pre> // 修改：显式转换为 Error 类型
     <button onClick={resetErrorBoundary}>Try again</button>
   </div>
 );
+ErrorFallback.displayName = 'ErrorFallback'; // 添加 displayName 修复 ESLint 报错
 
 // 新增：提取菜单抽屉组件以提升维护性
 const MenuDrawer = React.memo(({ menuOpen, menuLevel, currentSecondary, currentTertiary, closeAllMenus, openSecondary, openTertiary, backToMain, backToSecondary, swipeHandlers }: {
@@ -362,6 +363,7 @@ const MenuDrawer = React.memo(({ menuOpen, menuLevel, currentSecondary, currentT
     </div>
   );
 });
+MenuDrawer.displayName = 'MenuDrawer'; // 添加 displayName 修复 ESLint 报错
 
 // 新增：提取用户抽屉组件
 const UserDrawer = React.memo(({ userMenuOpen, session, closeAllMenus, handleLogout, swipeHandlers, setUserMenuOpen }: {
@@ -409,14 +411,14 @@ const UserDrawer = React.memo(({ userMenuOpen, session, closeAllMenus, handleLog
                 <Link href="/account/addresses" onClick={closeAllMenus} className="hover:opacity-60 transition-opacity outline-none" aria-label="Address Book">Address Book</Link>
                 <Link href="/wishlist" onClick={closeAllMenus} className="hover:opacity-60 transition-opacity outline-none" aria-label="Saved Items">Saved Items</Link>
                 {/* 新增的 VIP SERVICES 选项 */}
-  <Link 
-    href="/account/vip-services" 
-    onClick={closeAllMenus} 
-    className="hover:opacity-60 transition-opacity outline-none" 
-    aria-label="VIP Services"
-  >
-    VIP Services
-  </Link>
+                <Link 
+                  href="/account/vip-services" 
+                  onClick={closeAllMenus} 
+                  className="hover:opacity-60 transition-opacity outline-none" 
+                  aria-label="VIP Services"
+                >
+                  VIP Services
+                </Link>
                 <button 
                   onClick={handleLogout} 
                   className="text-red-500 hover:opacity-60 transition-opacity pt-4 outline-none"
@@ -446,6 +448,7 @@ const UserDrawer = React.memo(({ userMenuOpen, session, closeAllMenus, handleLog
     </div>
   );
 });
+UserDrawer.displayName = 'UserDrawer'; // 添加 displayName 修复 ESLint 报错
 
 // 新增：提取 Contact 抽屉组件
 const ContactDrawer = React.memo(({ contactMenuOpen, setContactMenuOpen, setWhatsappOpen, swipeHandlers }: {
@@ -456,7 +459,7 @@ const ContactDrawer = React.memo(({ contactMenuOpen, setContactMenuOpen, setWhat
 }) => {
   if (!contactMenuOpen) return null;
   return (
-    <div className="fixed inset-0 bg-white/60 backdrop-blur-xl z-[400] transition-all duration-700" onClick={() => setContactMenuOpen(false)}>
+    <div className="fixed inset-0 bg-white/60 backdrop-blur-xl z-[400]" onClick={() => setContactMenuOpen(false)}>
       <div 
         className="absolute right-0 top-0 h-full w-full md:max-w-md bg-white shadow-[-20px_0_50px_rgba(0,0,0,0.05)] p-8 md:p-12 flex flex-col" 
         onClick={(e) => e.stopPropagation()}
@@ -526,6 +529,7 @@ const ContactDrawer = React.memo(({ contactMenuOpen, setContactMenuOpen, setWhat
     </div>
   );
 });
+ContactDrawer.displayName = 'ContactDrawer'; // 添加 displayName 修复 ESLint 报错
 
 // 新增：提取 WhatsApp 抽屉组件
 const WhatsappDrawer = React.memo(({ whatsappOpen, setWhatsappOpen, setContactMenuOpen, swipeHandlers }: {
@@ -581,6 +585,7 @@ const WhatsappDrawer = React.memo(({ whatsappOpen, setWhatsappOpen, setContactMe
     </div>
   );
 });
+WhatsappDrawer.displayName = 'WhatsappDrawer'; // 添加 displayName 修复 ESLint 报错
 
 // 新增：组件 props 类型定义，支持 SSR/ISR 传入初始数据
 interface HeaderProps {

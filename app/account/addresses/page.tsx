@@ -223,7 +223,8 @@ export default function AddressBookPage() {
     setValidationResult(null);
   };
 
-  const useSuggestedAddress = (suggested: any) => {
+  // ✅ 【修正点】：将 useSuggestedAddress 重命名为 handleApplySuggestion，避免被误认为 React Hook
+  const handleApplySuggestion = (suggested: any) => {
     setForm({
       ...form,
       street: suggested.addressLines?.[0] || form.street,
@@ -280,7 +281,6 @@ export default function AddressBookPage() {
                   className="w-full border-b-2 border-gray-300 py-4 focus:border-black outline-none transition text-black placeholder:text-gray-500"
                 />
 
-                {/* 国家选择 */}
                 <select
                   value={form.country}
                   onChange={e => setForm({ ...form, country: e.target.value, state: '' })}
@@ -315,7 +315,6 @@ export default function AddressBookPage() {
                   <option value="United Arab Emirates">United Arab Emirates</option>
                 </select>
 
-                {/* 美国州 + ZIP */}
                 {form.country === 'United States' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <select
@@ -386,7 +385,6 @@ export default function AddressBookPage() {
                   </div>
                 )}
 
-                {/* 非美国 ZIP */}
                 {form.country !== 'United States' && (
                   <input
                     type="text"
@@ -502,7 +500,8 @@ export default function AddressBookPage() {
                   {validationResult.suggestions.map((s, i) => (
                     <button
                       key={i}
-                      onClick={() => useSuggestedAddress(s)}
+                      // ✅ 【修正点】：使用重命名后的 handleApplySuggestion
+                      onClick={() => handleApplySuggestion(s)}
                       className="block w-full text-left border border-gray-300 hover:border-black p-4 rounded-2xl mb-3 transition"
                     >
                       {s.formattedAddress}
