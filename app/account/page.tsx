@@ -4,29 +4,32 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-
-import { getAuth, onAuthStateChanged } from "firebase/auth";
+// 1. 修改：删除 Firebase 导入，改为使用 supabase 客户端
+import { createClient } from '@/utils/supabase/client'; 
 
 export default function AccountPage() {
   const router = useRouter();
-  const auth = getAuth();
+  const supabase = createClient(); // 2. 初始化 Supabase
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (!currentUser) {
+    // 3. 修改：使用 Supabase 的获取用户信息方法
+    const getUser = async () => {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      
+      if (error || !user) {
         toast.error('Please sign in to view your account');
         router.push('/auth/signin');
         return;
       }
 
-      setUser(currentUser);
+      setUser(user);
       setLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
-  }, [router]);
+    getUser();
+  }, [router, supabase]);
 
   if (loading) {
     return (
@@ -43,7 +46,8 @@ export default function AccountPage() {
           My Account
         </h1>
         <p className="text-2xl text-center opacity-80 mb-16">
-          Welcome back, {user?.displayName || user?.email?.split('@')[0] || 'Linjin Guest'}
+          {/* 4. 修改：Supabase 的用户属性在 user_metadata 中 */}
+          Welcome back, {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Linjin Guest'}
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-5xl mx-auto">
@@ -89,7 +93,7 @@ export default function AccountPage() {
             <p className="text-xl opacity-70 mt-4">Your saved favorites</p>
           </Link>
 
-          {/* Account Settings（这就是新增的链接！） */}
+          {/* Account Settings */}
           <Link 
             href="/account-settings" 
             className="bg-white p-16 rounded-2xl shadow-lg hover:shadow-2xl transition-transform hover:scale-105 flex flex-col items-center text-center group"
