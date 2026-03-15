@@ -16,8 +16,14 @@ interface HygraphJournal {
 
 // 2. 抓取函数：产品
 async function getHygraphProducts(): Promise<HygraphProduct[]> {
-  const HYGRAPH_ENDPOINT = process.env.HYGRAPH_ENDPOINT!;
-  const HYGRAPH_TOKEN = process.env.HYGRAPH_TOKEN;
+  // 对齐你的环境变量名
+  const endpoint = process.env.NEXT_PUBLIC_HYGRAPH_ENDPOINT;
+  const token = process.env.HYGRAPH_TOKEN;
+
+  if (!endpoint) {
+    console.error("Sitemap: NEXT_PUBLIC_HYGRAPH_ENDPOINT is undefined");
+    return [];
+  }
 
   const query = `
     query GetProductsForSitemap {
@@ -32,17 +38,19 @@ async function getHygraphProducts(): Promise<HygraphProduct[]> {
   `;
 
   try {
-    const response = await fetch(HYGRAPH_ENDPOINT, {
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        ...(HYGRAPH_TOKEN && { Authorization: `Bearer ${HYGRAPH_TOKEN}` }),
+        ...(token && { Authorization: `Bearer ${token}` }),
       },
       body: JSON.stringify({ query }),
       next: { revalidate: 3600 },
     });
+
     const json = await response.json();
-    return json.data?.products || [];
+    if (!json || !json.data) return [];
+    return json.data.products || [];
   } catch (error) {
     console.error('Sitemap Fetch Error (Products):', error);
     return [];
@@ -51,8 +59,10 @@ async function getHygraphProducts(): Promise<HygraphProduct[]> {
 
 // 3. 抓取函数：Journal 文章
 async function getHygraphJournals(): Promise<HygraphJournal[]> {
-  const HYGRAPH_ENDPOINT = process.env.HYGRAPH_ENDPOINT!;
-  const HYGRAPH_TOKEN = process.env.HYGRAPH_TOKEN;
+  const endpoint = process.env.NEXT_PUBLIC_HYGRAPH_ENDPOINT;
+  const token = process.env.HYGRAPH_TOKEN;
+
+  if (!endpoint) return [];
 
   const query = `
     query GetJournalsForSitemap {
@@ -64,34 +74,36 @@ async function getHygraphJournals(): Promise<HygraphJournal[]> {
   `;
 
   try {
-    const response = await fetch(HYGRAPH_ENDPOINT, {
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        ...(HYGRAPH_TOKEN && { Authorization: `Bearer ${HYGRAPH_TOKEN}` }),
+        ...(token && { Authorization: `Bearer ${token}` }),
       },
       body: JSON.stringify({ query }),
       next: { revalidate: 3600 },
     });
+
     const json = await response.json();
-    return json.data?.journals || [];
+    if (!json || !json.data) return [];
+    return json.data.journals || [];
   } catch (error) {
     console.error('Sitemap Fetch Error (Journals):', error);
     return [];
   }
 }
 
-// 4. 主函数
+// 4. 生成 Sitemap 主函数
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.linjinluxury.com';
 
-  // 并行执行所有请求，提高效率
+  // 并行获取数据
   const [products, journals] = await Promise.all([
     getHygraphProducts(),
     getHygraphJournals(),
   ]);
 
-  // A. 静态核心页面
+  // A. 静态页面
   const staticPages = [
     { path: '', priority: 1.0, freq: 'daily' as const },
     { path: '/collection', priority: 0.9, freq: 'daily' as const },
@@ -112,7 +124,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: page.priority,
   }));
 
-  // B. 产品详情页 (动态路径: /[gender]/[category]/[subCategory]/[slug])
+  // B. 处理产品 (适配层级路径)
   const productEntries = products.map((product) => {
     const g = product.gender?.slug || 'all';
     const c = product.category?.slug || 'items';
@@ -126,7 +138,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     };
   });
 
-  // C. Journal 文章页 (动态路径: /journal/[slug])
+  // C. 处理 Journal 文章
   const journalEntries = journals.map((post) => ({
     url: `${baseUrl}/journal/${post.slug}`,
     lastModified: new Date(post.updatedAt).toISOString(),
@@ -134,6 +146,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
-  // 合并所有结果
   return [...staticEntries, ...productEntries, ...journalEntries];
 }
