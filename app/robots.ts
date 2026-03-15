@@ -12,6 +12,7 @@ export default function robots(): MetadataRoute.Robots {
         '/admin/',    // 禁止抓取后台管理（如果有私有管理页）
         '/checkout/', // 禁止抓取结账页面（动态/用户特定）
         '/my-account/', // 禁止抓取个人中心（隐私保护）
+        '/auth/', // 新增：保护认证逻辑页面
         // 添加更多规则，例如 '/private/' 或 '/test/'
       ],
     },
