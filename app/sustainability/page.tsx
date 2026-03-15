@@ -1,6 +1,6 @@
 import React from 'react';
 import Image from 'next/image';
-
+import Link from 'next/link';
 // 1. SEO 元数据优化 (针对 Google 搜索结果)
 export const metadata = {
   title: 'Sustainability & Craftsmanship | LinJin Luxury (LJL)',
@@ -143,18 +143,18 @@ export default function SustainabilityPage() {
         </section>
 
         {/* --- FINAL CTA --- */}
-        <section className="py-24 md:py-32 text-center px-6">
-          <h2 className="text-[10px] md:text-xs uppercase tracking-[0.4em] mb-8 text-stone-400">Own a piece of the future</h2>
-          <a 
-            href="/collection" 
-            className="group relative inline-flex items-center justify-center px-12 md:px-16 py-4 md:py-5 overflow-hidden border border-stone-900"
-          >
-            <span className="relative z-10 text-[10px] md:text-xs uppercase tracking-widest group-hover:text-white transition-colors duration-500">
-              Shop the Collection
-            </span>
-            <span className="absolute inset-0 bg-stone-900 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-in-out"></span>
-          </a>
-        </section>
+<section className="py-24 md:py-32 text-center px-6">
+  <h2 className="text-[10px] md:text-xs uppercase tracking-[0.4em] mb-8 text-stone-400">Own a piece of the future</h2>
+  <Link 
+    href="/collection" 
+    className="group relative inline-flex items-center justify-center px-12 md:px-16 py-4 md:py-5 overflow-hidden border border-stone-900"
+  >
+    <span className="relative z-10 text-[10px] md:text-xs uppercase tracking-widest group-hover:text-white transition-colors duration-500">
+      Shop the Collection
+    </span>
+    <span className="absolute inset-0 bg-stone-900 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-in-out"></span>
+  </Link>
+</section>
 
       </main>
     </>
