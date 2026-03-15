@@ -25,10 +25,10 @@ export const metadata: Metadata = {
   
   // ✅ 图标配置：Next.js 会自动识别 /app 目录下的 icon.png
   icons: {
-  icon: '/logo.png', // 换成新名字
-  shortcut: '/logo.png',
-  apple: '/logo.png', 
-},
+    icon: '/icon.png',
+    shortcut: '/icon.png',
+    apple: '/icon.png', 
+  },
 
   openGraph: {
     title: 'LINJIN LUXURY | Premium Supply Chain Handbags | LA Studio',
