@@ -21,6 +21,14 @@ export const metadata: Metadata = {
   description: 'Authentic new premium luxury handbags in pristine condition from Los Angeles. 100% guaranteed authenticity and exceptional quality.',
   keywords: 'Linjin Luxury, luxury handbags Los Angeles, authentic designer bags, pristine condition handbags, Hermes Birkin Los Angeles, Chanel classic flap, Louis Vuitton',
   metadataBase: new URL('https://www.linjinluxury.com'),
+  
+  // ✅ 图标配置：指向你上传到 /app 目录下的 icon.png
+  icons: {
+    icon: '/icon.png',
+    shortcut: '/icon.png',
+    apple: '/icon.png', // 这样 iPhone 用户保存到桌面也会显示你的 L 图标
+  },
+
   openGraph: {
     title: 'Linjin Luxury | Authentic Pristine Designer Handbags Los Angeles',
     description: 'Premium authentic new designer handbags in pristine condition from Los Angeles.',
@@ -66,9 +74,6 @@ export default function RootLayout({
           referrerPolicy="no-referrer" 
         />
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-        
-        {/* Favicon */}
-        <link rel="icon" href="/favicon.ico" />
       </head>
       <body className="m-0 p-0 bg-black text-white min-h-screen flex flex-col">
         {/* SupabaseProvider 包裹最外层 */}
@@ -118,7 +123,7 @@ export default function RootLayout({
         {/* 新增：Google Analytics (GA4) */}
         <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_ID || ''} />
 
-        {/* 新增：Google Tag Manager (GTM) - 如果有 GTM ID，否则可移除 */}
+        {/* 新增：Google Tag Manager (GTM) */}
         <GoogleTagManager gtmId={process.env.NEXT_PUBLIC_GTM_ID || ''} />
       </body>
     </html>
