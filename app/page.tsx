@@ -26,29 +26,32 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: 'LINJIN LUXURY | Premium Supply Chain Handbags | LA Studio',
     description: 'From studio to wardrobe. We offer master-quality designer handbags direct from premium supply chains with worldwide express shipping.',
-    keywords: 'luxury handbags, designer bags, premium supply chain, LA fashion studio, high-quality replicas, eternal archive, women bags, men accessories', // 添加关键词优化
-    alternates: { canonical: 'https://linjin-luxury.com' },
+    keywords: 'luxury handbags, designer bags, premium supply chain, LA fashion studio, high-quality replicas, eternal archive, women bags, men accessories',
+    alternates: { canonical: 'https://www.linjinluxury.com' }, // 建议统一使用 www 域名
+    
     openGraph: {
       title: 'LINJIN LUXURY | Premium Supply Chain Handbags | LA Studio',
       description: 'From studio to wardrobe. We offer master-quality designer handbags direct from premium supply chains with worldwide express shipping.',
-      images: [{ url: '/og-home.jpg', width: 1200, height: 630, alt: 'LINJIN LUXURY Home' }], // 优化图像，添加宽度/高度/alt
-      url: 'https://linjin-luxury.com',
-      type: 'website', // 添加类型
-      siteName: 'LINJIN LUXURY', // 添加站点名
-      locale: 'en_US', // 添加语言区域
+      images: [{ url: '/og-home.jpg', width: 1200, height: 630, alt: 'LINJIN LUXURY Home' }],
+      url: 'https://www.linjinluxury.com',
+      type: 'website',
+      siteName: 'LINJIN LUXURY',
+      locale: 'en_US',
     },
+    
     twitter: {
-      card: 'summary_large_image', // Twitter卡片类型
-      site: '@linjinluxury', // Twitter句柄（如果有，替换为实际）
+      card: 'summary_large_image',
       title: 'LINJIN LUXURY | Premium Supply Chain Handbags | LA Studio',
       description: 'From studio to wardrobe. We offer master-quality designer handbags direct from premium supply chains with worldwide express shipping.',
-      images: ['/og-home.jpg'], // Twitter图像
+      images: ['/og-home.jpg'],
     },
-    robots: 'index, follow', // 机器人指令
-    viewport: 'width=device-width, initial-scale=1.0', // 视口优化（移动友好）
-    icons: {
-      icon: '/favicon.ico', // 添加favicon
-      apple: '/apple-touch-icon.png', // Apple图标
+    
+    // ✅ 关键修改：删除 icons 部分，让它自动继承 layout.tsx 中的 /icon.png
+    // ✅ 关键修改：删除 viewport，因为 layout.tsx 里已经定义了更详细的移动端优化配置
+    
+    robots: {
+      index: true,
+      follow: true,
     },
   };
 }
@@ -59,8 +62,8 @@ function generateJsonLd() {
     "@context": "https://schema.org",
     "@type": "Organization",
     "name": "LINJIN LUXURY",
-    "url": "https://linjin-luxury.com",
-    "logo": "/logo.jpg",
+    "url": "https://www.linjinluxury.com",
+    "logo": "https://www.linjinluxury.com/icon.png",
     "description": "Premium supply chain specialists for luxury handbags and fashion items.",
     "address": {
       "@type": "PostalAddress",

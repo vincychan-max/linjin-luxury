@@ -13,40 +13,42 @@ import { Toaster } from 'react-hot-toast';
 // 新增：引入 Google Analytics 和 Tag Manager 组件
 import { GoogleAnalytics, GoogleTagManager } from '@next/third-parties/google';
 
+// ✅ 方案 A：极简高级风 SEO 配置
 export const metadata: Metadata = {
   title: {
-    default: 'Linjin Luxury | Authentic Pristine Designer Handbags Los Angeles',
-    template: '%s | Linjin Luxury',
+    default: 'LINJIN LUXURY | Premium Supply Chain Handbags | LA Studio',
+    template: '%s | LINJIN LUXURY',
   },
-  description: 'Authentic new premium luxury handbags in pristine condition from Los Angeles. 100% guaranteed authenticity and exceptional quality.',
-  keywords: 'Linjin Luxury, luxury handbags Los Angeles, authentic designer bags, pristine condition handbags, Hermes Birkin Los Angeles, Chanel classic flap, Louis Vuitton',
+  description: 'Premium supply chain specialists for luxury handbags and fashion items. Crafted with exceptional quality and timeless design, delivered from our studio to your wardrobe.',
+  keywords: 'Linjin Luxury, luxury designer handbags, premium supply chain, LA fashion studio, master-quality bags, luxury handbags Los Angeles, premium leather goods, designer tote bags, luxury shoulder bags, designer crossbody bags',
   metadataBase: new URL('https://www.linjinluxury.com'),
   
-  // ✅ 图标配置：指向你上传到 /app 目录下的 icon.png
+  // ✅ 图标配置：Next.js 会自动识别 /app 目录下的 icon.png
   icons: {
-    icon: '/icon.png',
-    shortcut: '/icon.png',
-    apple: '/icon.png', // 这样 iPhone 用户保存到桌面也会显示你的 L 图标
-  },
+  icon: '/logo.png', // 换成新名字
+  shortcut: '/logo.png',
+  apple: '/logo.png', 
+},
 
   openGraph: {
-    title: 'Linjin Luxury | Authentic Pristine Designer Handbags Los Angeles',
-    description: 'Premium authentic new designer handbags in pristine condition from Los Angeles.',
+    title: 'LINJIN LUXURY | Premium Supply Chain Handbags | LA Studio',
+    description: 'Premium supply chain specialists for luxury handbags and fashion items. Crafted with exceptional quality and timeless design.',
     images: [
       {
         url: '/images/hero-main.jpg',
         width: 1200,
         height: 630,
-        alt: 'Linjin Luxury Hero',
+        alt: 'LINJIN LUXURY - Premium Supply Chain Handbags',
       },
     ],
     locale: 'en_US',
     type: 'website',
+    siteName: 'LINJIN LUXURY',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Linjin Luxury | Authentic Luxury Handbags Los Angeles',
-    description: 'Premium authentic new designer handbags in pristine condition from Los Angeles.',
+    title: 'LINJIN LUXURY | Premium Supply Chain Handbags',
+    description: 'Premium supply chain specialists for luxury handbags and fashion items.',
     images: ['/images/hero-main.jpg'],
   },
   robots: {
@@ -63,20 +65,41 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // ✅ 生成 JSON-LD 结构化数据，提升 Google 搜索的品牌呈现
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "LINJIN LUXURY",
+    "url": "https://www.linjinluxury.com",
+    "logo": "https://www.linjinluxury.com/icon.png",
+    "description": "Premium supply chain specialists for luxury handbags and fashion items.",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "Los Angeles",
+      "addressRegion": "CA",
+      "addressCountry": "US"
+    }
+  };
+
   return (
     <html lang="en">
       <head>
         <link 
           rel="stylesheet" 
+          // 这里的 FontAwesome 用于你页面中的各种小图标
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" 
           integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" 
           crossOrigin="anonymous" 
           referrerPolicy="no-referrer" 
         />
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+        {/* 插入 JSON-LD 脚本 */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
       </head>
       <body className="m-0 p-0 bg-black text-white min-h-screen flex flex-col">
-        {/* SupabaseProvider 包裹最外层 */}
         <SupabaseProvider>
           <PayPalProvider>
             <Header />
@@ -85,19 +108,18 @@ export default function RootLayout({
             </main>
             <Footer />
 
-            {/* ✅ 2. 核心：购物车侧边栏（由 useCart 控制显示） */}
             <CartDrawer />
 
-            {/* ✅ 3. 核心：全局提示框（解决 Add to Bag 反馈问题） */}
             <Toaster 
               position="bottom-center"
               toastOptions={{
                 duration: 3000,
                 style: {
-                  background: '#333',
+                  background: '#1a1a1a',
                   color: '#fff',
                   fontSize: '12px',
-                  borderRadius: '0px', // 配合你的极简大牌风
+                  borderRadius: '0px',
+                  border: '1px solid #333'
                 },
               }} 
             />
@@ -105,7 +127,6 @@ export default function RootLayout({
           </PayPalProvider>
         </SupabaseProvider>
 
-        {/* Tawk.to 客服脚本 */}
         <Script id="tawkto-script" strategy="afterInteractive">
           {`
             var Tawk_API=Tawk_API||{}, Tawk_LoadStart=new Date();
@@ -120,10 +141,7 @@ export default function RootLayout({
           `}
         </Script>
 
-        {/* 新增：Google Analytics (GA4) */}
         <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_ID || ''} />
-
-        {/* 新增：Google Tag Manager (GTM) */}
         <GoogleTagManager gtmId={process.env.NEXT_PUBLIC_GTM_ID || ''} />
       </body>
     </html>
