@@ -56,13 +56,11 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
    */
   const currentVariantId = useMemo(() => {
     const colorObj = product?.colors?.find((c: any) => c.name === selectedColor);
-    // 优先使用变体 ID，确保收藏精确到颜色
     return colorObj?.id || product?.id;
   }, [selectedColor, product]);
 
   /**
    * 🌟 收藏状态判断
-   * 当 wishlistIds 数组发生变化时，这里会自动重新计算，从而让心形变红
    */
   const isLiked = useMemo(() => {
     return wishlistIds.includes(currentVariantId);
@@ -113,10 +111,7 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
     }
 
     try {
-      // 这里的 await 确保状态修改完成
       await toggleWishlist(currentVariantId);
-      
-      // 注意：这里删除了 router.refresh()，让 Store 驱动 UI 同步
       toast.success(isLiked ? 'Removed from favorites' : 'Added to favorites', {
         style: { fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase' }
       });
@@ -125,20 +120,21 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
     }
   }, [user, isLiked, currentVariantId, toggleWishlist]);
 
+  /**
+   * ✅ 关键修复：移除手动定义的 id，完全符合 AddCartInput 类型
+   */
   const handleAddToBag = useCallback(async () => {
     if (!product) return;
     setIsAdding(true);
     try {
       const cartItem = {
-        id: `${product.id}-${selectedColor}-${selectedSize}`,
         product_id: product.id, 
         name: product.name, 
         price: product.price,
         image: currentImages[0]?.url || '', 
         color: selectedColor, 
         size: selectedSize,
-        quantity: 1, 
-        material: product.material || 'Premium Leather'
+        // 如果你的 store 需要 material 字段，请确保它存在于 CartItem 定义中，否则请删除
       };
       await addToCart(cartItem, user?.id);
       toast.success('Added to bag', {
@@ -152,17 +148,18 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
     }
   }, [product, selectedColor, selectedSize, currentImages, addToCart, user?.id, openCart]);
 
+  /**
+   * ✅ 关键修复：移除手动定义的 id
+   */
   const handleBuyNow = useCallback(async () => {
     if (!product) return;
     await addToCart({
-      id: `${product.id}-${selectedColor}-${selectedSize}`,
       product_id: product.id, 
       name: product.name, 
       price: product.price,
       image: currentImages[0]?.url || '', 
       color: selectedColor, 
       size: selectedSize, 
-      quantity: 1
     }, user?.id);
     router.push('/cart'); 
   }, [product, selectedColor, selectedSize, currentImages, addToCart, user?.id, router]);
@@ -215,7 +212,7 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
                   <Plus size={18} strokeWidth={1} className="group-open:rotate-45 transition-transform" />
                 </summary>
                 <div className="pb-6 text-[13px] font-light text-zinc-500 leading-relaxed max-w-2xl prose prose-zinc">
-                   <div dangerouslySetInnerHTML={{ __html: descriptionHtml }} />
+                    <div dangerouslySetInnerHTML={{ __html: descriptionHtml }} />
                 </div>
               </details>
 
@@ -259,7 +256,7 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
                 product={product} 
                 selectedColor={selectedColor} 
                 selectedSize={selectedSize}
-                isFavorited={isLiked} // 传入计算出的收藏状态
+                isFavorited={isLiked} 
                 isAdding={isAdding} 
                 addToBag={handleAddToBag} 
                 buyNow={handleBuyNow} 
