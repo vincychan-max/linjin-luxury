@@ -29,6 +29,7 @@ interface ProductListProps {
   initialProducts: Product[];
   gender: string;
   category: string;
+  subCategory: string; // ✨ 修复点 1：在这里添加 subCategory 定义
   collectionTitle?: string;
   collectionDescription?: string;
   collectionBackgroundImageUrl?: string;
@@ -115,6 +116,7 @@ export default function ProductListClient({
   initialProducts, 
   gender, 
   category, 
+  subCategory, // ✨ 修复点 2：在解构参数中接收 subCategory
   collectionTitle, 
   collectionDescription, 
   collectionBackgroundImageUrl, 
@@ -167,25 +169,19 @@ export default function ProductListClient({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  /**
-   * 🌟 修复后的异步逻辑：副作用完全移出 updater
-   */
   const handleWishlistToggle = useCallback(async (e: React.MouseEvent, variantId: string) => {
     e.preventDefault();
     e.stopPropagation();
     
     if (!variantId || updatingIds[variantId]) return;
 
-    // 1. 获取当前状态（用于逻辑判断）
     const isCurrentlyLiked = localWishlist.includes(variantId);
 
-    // 2. 乐观更新 UI + 设置锁定状态
     setLocalWishlist(prev => 
       isCurrentlyLiked ? prev.filter(id => id !== variantId) : [...prev, variantId]
     );
     setUpdatingIds(prev => ({ ...prev, [variantId]: true }));
 
-    // 3. 执行异步请求
     try {
       await toggleWishlist(variantId);
       if (!isCurrentlyLiked) {
@@ -195,11 +191,9 @@ export default function ProductListClient({
       }
     } catch (error) {
       toast.error("ACTION FAILED");
-      // 失败时回滚：获取最新后端数据
       const freshIds = await fetchWishlistIds(); 
       if (freshIds) setLocalWishlist(freshIds);
     } finally {
-      // 4. 解锁 ID
       setUpdatingIds(prev => {
         const newState = { ...prev };
         delete newState[variantId];
