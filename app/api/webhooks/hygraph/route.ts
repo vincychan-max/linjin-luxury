@@ -11,17 +11,15 @@ export async function POST(req: Request) {
     const body = await req.json();
     const productData = body.data;
 
-    // 1. 获取变体列表
-    let variants = productData.variants || [productData];
+    // 1. 获取变体列表 - 已修改：使用 const 避免 ESLint 报错
+    const variants = productData.variants || [productData];
     
-    // 2. 获取公共信息 (价格/图片)
-    const commonPrice = productData.price || 0; 
-
+    // 2. 检查是否有数据
     if (!variants || variants.length === 0) {
       return NextResponse.json({ message: 'No data to sync' });
     }
 
-    // 3. 构造与你 Supabase 表字段完全对应的数组
+    // 3. 构造与 Supabase 表字段完全对应的数组
     const upsertData = variants.map((v: any) => ({
       id: v.id,                                     // 对应 id (text)
       product_id: productData.id || v.product?.id,  // 对应 product_id (text)
