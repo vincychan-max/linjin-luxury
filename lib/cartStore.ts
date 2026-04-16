@@ -18,6 +18,7 @@ interface CartState {
   cart: CartItem[];
   loading: boolean;
   _hasHydrated: boolean;
+  isOpen: boolean;        // ✨ 新增：用于控制侧边栏显示
 
   getTotalPrice: () => number;
   getTotalItems: () => number;
@@ -29,7 +30,12 @@ interface CartState {
   syncLocalCartWithServer: (userId: string) => Promise<void>;
   clearCart: (userId?: string) => Promise<void>;
   setHasHydrated: (state: boolean) => void;
-  setServerCart: (serverCart: CartItem[]) => void;   // 新增：用于 SSR 注入
+  setServerCart: (serverCart: CartItem[]) => void;
+  
+  // ✨ 新增：控制函数
+  openCart: () => void;
+  closeCart: () => void;
+  toggleCart: () => void;
 }
 
 // ==================== 工具函数 ====================
@@ -57,13 +63,17 @@ export const useCart = create<CartState>()(
       cart: [],
       loading: false,
       _hasHydrated: false,
+      isOpen: false, // ✨ 默认关闭
 
       setHasHydrated: (state: boolean) => set({ _hasHydrated: state }),
 
-      // 新增：专门用于 Server Component 注入初始购物车数据
+      // ✨ 新增：控制函数实现
+      openCart: () => set({ isOpen: true }),
+      closeCart: () => set({ isOpen: false }),
+      toggleCart: () => set({ isOpen: !get().isOpen }),
+
       setServerCart: (serverCart: CartItem[]) => {
         if (!Array.isArray(serverCart) || serverCart.length === 0) return;
-        
         set((state) => ({
           cart: state.cart.length === 0 ? cleanCartData(serverCart) : state.cart,
           _hasHydrated: true,
@@ -114,9 +124,9 @@ export const useCart = create<CartState>()(
               ...updatedCart[existingIndex],
               quantity: updatedCart[existingIndex].quantity + 1
             };
-            return { cart: updatedCart };
+            return { cart: updatedCart, isOpen: true }; // 添加商品后自动打开侧边栏
           }
-          return { cart: [...currentCart, { ...input, id: skuId, quantity: 1 }] };
+          return { cart: [...currentCart, { ...input, id: skuId, quantity: 1 }], isOpen: true };
         });
 
         if (userId) {
@@ -225,13 +235,13 @@ export const useCart = create<CartState>()(
       name: 'shopping-cart-storage',
       version: 1,
       storage: createJSONStorage(() => localStorage),
+      // ⚠️ 重点：只持久化购物车商品数据，不持久化侧边栏开关状态
       partialize: (state) => ({ cart: state.cart }),
-      skipHydration: true,                    // ← 关键修复：跳过自动 hydration
+      skipHydration: true,
 
       onRehydrateStorage: () => (state) => {
         if (state) {
           state.setHasHydrated(true);
-          // 防止数据异常
           if (!Array.isArray(state.cart)) {
             state.cart = [];
           }
