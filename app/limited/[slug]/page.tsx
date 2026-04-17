@@ -1,108 +1,140 @@
 import { notFound } from "next/navigation";
+import { Metadata } from "next";
+import Script from "next/script";
+import { hygraph } from "@/lib/hygraph";   // 推荐统一使用这个
+
 import HeroSection from "./components/HeroSection";
 import LimitedGallery from "./components/LimitedGallery";
 import LimitedInfo from "./components/LimitedInfo";
-import Script from "next/script"; // 用于 JSON-LD
 
+interface Product {
+  id: string;
+  name: string;
+  slug: string;
+  price: number;
+  description: { html: string; text: string } | null;
+  isLimited: boolean;
+  variants: {
+    images: { url: string }[];
+  }[];
+}
+
+interface Props {
+  params: Promise<{ slug: string }>;
+}
+
+/** ====================== 动态 Metadata ====================== */
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params;
+  const product = await getProduct(slug);
+
+  if (!product || !product.isLimited) {
+    return {
+      title: "Product Not Found | LINJIN LUXURY",
+    };
+  }
+
+  return {
+    title: `${product.name} | The Archive | LINJIN LUXURY`,
+    description: product.description?.text?.slice(0, 160) || "Exclusive limited edition leather good from LINJIN LUXURY Archive.",
+    alternates: {
+      canonical: `https://www.linjinluxury.com/limited/${slug}`,
+    },
+    openGraph: {
+      title: product.name,
+      description: product.description?.text?.slice(0, 160),
+      images: [{ url: product.variants?.[0]?.images?.[0]?.url || "" }],
+      type: "website",
+    },
+  };
+}
+
+/** ====================== 获取产品数据 ====================== */
 async function getProduct(slug: string) {
-  const endpoint = process.env.NEXT_PUBLIC_HYGRAPH_ENDPOINT!;
-  
-  /**
-   * 🌟 核心修正：
-   * 1. 删除了根层级的 images 字段。
-   * 2. 增加了 variants 查询，从变体中获取图片。
-   */
-  const query = `
-    query GetProduct($slug: String!) {
-      product(where: {slug: $slug}) {
-        name
-        price
-        description { html, text }
-        isLimited
-        slug
-        # 从变体中抓取图片
-        variants(first: 1) {
-          ... on ProductVariant {
-            images {
-              url
+  try {
+    const { product } = await hygraph.request<{ product: Product | null }>(`
+      query GetLimitedProduct($slug: String!) {
+        product(where: { slug: $slug }, stage: PUBLISHED) {
+          id
+          name
+          slug
+          price
+          description { html text }
+          isLimited
+          variants(first: 1) {
+            ... on ProductVariant {
+              images {
+                url
+              }
             }
           }
         }
       }
-    }
-  `;
-
-  try {
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query, variables: { slug } }),
-      next: { revalidate: 3600 }, 
-    });
-    const json = await res.json();
-    const product = json.data?.product;
+    `, { slug });
 
     if (!product) return null;
 
-    /**
-     * 🌟 数据适配：
-     * 为了让下方的组件（HeroSection, LimitedGallery）不需要改动代码，
-     * 我们在这里手动把第一个变体的图片“转换”回原来的 images 格式。
-     */
+    // 数据适配：把 variants 中的图片拍平，方便组件使用
     return {
       ...product,
-      images: product.variants?.[0]?.images || []
+      images: product.variants?.[0]?.images || [],
     };
   } catch (error) {
+    console.error("Failed to fetch limited product:", error);
     return null;
   }
 }
 
-export default async function LimitedProductPage({ params }: { params: Promise<{ slug: string }> }) {
+/** ====================== 页面组件 ====================== */
+export default async function LimitedProductPage({ params }: Props) {
   const { slug } = await params;
   const product = await getProduct(slug);
 
-  if (!product || !product.isLimited) notFound();
+  if (!product || !product.isLimited) {
+    notFound();
+  }
 
-  // --- 生成 Google 识别的 JSON-LD 数据 ---
+  // JSON-LD
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
     "name": product.name,
-    "image": product.images?.map((img: any) => img.url) || [],
+    "image": product.images.map((img: any) => img.url),
     "description": product.description?.text || "",
     "brand": {
       "@type": "Brand",
-      "name": "Privé Archive"
+      "name": "LINJIN LUXURY"
     },
     "offers": {
       "@type": "Offer",
       "price": product.price,
       "priceCurrency": "USD",
-      "availability": "https://schema.org/LimitedAvailability"
+      "availability": "https://schema.org/LimitedAvailability",
+      "itemCondition": "https://schema.org/NewCondition"
     }
   };
 
   return (
     <main className="bg-[#050505] min-h-screen text-white selection:bg-[#d4af37]/30 overflow-x-hidden">
-      {/* 结构化数据注入 */}
+      {/* JSON-LD */}
       <Script
-        id="product-jsonld"
+        id="limited-product-jsonld"
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c'),
+        }}
       />
 
-      {/* 1. 全屏头图 */}
+      {/* Hero Section */}
       <section className="relative w-full">
         <HeroSection product={product} />
       </section>
 
-      {/* 2. 沉浸式内容区 */}
+      {/* 内容区域 */}
       <div className="flex flex-col lg:flex-row relative">
-        
         {/* 左侧画廊 */}
         <div className="w-full lg:w-[62%] border-b lg:border-b-0 lg:border-r border-white/5 order-2 lg:order-1">
-          <LimitedGallery images={product.images?.map((img: any) => img.url) || []} />
+          <LimitedGallery images={product.images.map((img: any) => img.url)} />
         </div>
 
         {/* 右侧信息 */}

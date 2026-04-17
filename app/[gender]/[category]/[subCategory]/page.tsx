@@ -12,7 +12,6 @@ const BASE_URL = 'https://www.linjinluxury.com';
 
 // --- GraphQL 查询定义 ---
 
-// 1. 获取分类及子分类的配置信息
 const GET_CATEGORY_BY_SLUG = gql`
   query GetCategoryBySlug($categorySlug: String!, $genderSlug: String!) {
     categories(where: { slug: $categorySlug, gender: { slug: $genderSlug } }) {
@@ -34,7 +33,7 @@ const GET_CATEGORY_BY_SLUG = gql`
 
 /**
  * 2. 动态生成产品查询语句
- * 🌟 修正核心：在 variants 内增加了 id 字段，用于支持列表页的心愿单功能
+ * 🌟 优化：加入 orderBy: createdAt_DESC 确保新品优先展示
  */
 function getProductsQuery(isAll: boolean) {
   const productFields = `
@@ -46,7 +45,7 @@ function getProductsQuery(isAll: boolean) {
     material
     variants {
       ... on ProductVariant {
-        id  # 👈 必须获取变体 ID
+        id
         productColorEnum
         images(first: 1) {
           url
@@ -63,7 +62,7 @@ function getProductsQuery(isAll: boolean) {
             { gender: { slug: $genderSlug } }, 
             { category: { id: $categoryID } }
           ] 
-        }, first: 48, stage: PUBLISHED) {
+        }, first: 48, stage: PUBLISHED, orderBy: createdAt_DESC) {
           ${productFields}
         }
       }
@@ -78,7 +77,7 @@ function getProductsQuery(isAll: boolean) {
           { category: { id: $categoryID } },
           { subCategories_some: { slug: $subCategorySlug } }
         ] 
-      }, first: 48, stage: PUBLISHED) {
+      }, first: 48, stage: PUBLISHED, orderBy: createdAt_DESC) {
         ${productFields}
       }
     }
@@ -96,7 +95,7 @@ function getInternalSlug(gender: string, category: string) {
   return c;
 }
 
-// --- SEO & GEO：生成 JSON-LD 结构化数据 ---
+// --- SEO & GEO：增强版结构化数据 ---
 function generateCombinedSchema(products: any[], params: { gender: string; category: string; subCategory: string }, categoryName: string) {
   const { gender, category } = params;
   const categoryUrl = `${BASE_URL}/${gender}/${category}`;
@@ -112,13 +111,24 @@ function generateCombinedSchema(products: any[], params: { gender: string; categ
 
   const itemListSchema = {
     "@type": "ItemList",
+    "name": `${categoryName} Collection | LINJIN LUXURY`,
     "numberOfItems": products.length,
     "itemListElement": products.map((prod, index) => ({
       "@type": "ListItem",
       "position": index + 1,
-      "url": `${BASE_URL}/product/${prod.slug}`,
-      "name": prod.name,
-      "image": prod.images?.[0]?.url || ""
+      "item": {
+        "@type": "Product",
+        "url": `${BASE_URL}/product/${prod.slug}`,
+        "name": prod.name,
+        "image": prod.images?.[0]?.url || "",
+        "brand": { "@type": "Brand", "name": "LINJIN LUXURY" },
+        "offers": {
+          "@type": "Offer",
+          "price": prod.price,
+          "priceCurrency": "USD",
+          "availability": "https://schema.org/InStock"
+        }
+      }
     }))
   };
 
@@ -128,7 +138,42 @@ function generateCombinedSchema(products: any[], params: { gender: string; categ
   };
 }
 
-// --- 生成静态路径 ---
+// --- 生成元数据 ---
+export async function generateMetadata({ params }: { params: Promise<{ gender: string; category: string; subCategory: string }> }): Promise<Metadata> {
+  const { gender, category, subCategory } = await params;
+  const internalSlug = getInternalSlug(gender, category);
+  
+  try {
+    const catRes: any = await hygraph.request(GET_CATEGORY_BY_SLUG, {
+      categorySlug: internalSlug,
+      genderSlug: gender.toLowerCase()
+    });
+    
+    const cat = catRes.categories[0];
+    const isAll = subCategory.toLowerCase() === 'all';
+    const activeSub = !isAll ? cat?.subCategories.find((s: any) => s.slug === subCategory.toLowerCase()) : null;
+
+    const title = `${(activeSub?.name || category).toUpperCase()} | ${gender.toUpperCase()} COLLECTION | LINJIN LUXURY`;
+    const description = activeSub?.collectionDescription || cat?.collectionDescription || `Explore the finest ${gender} ${category} at LINJIN LUXURY.`;
+
+    return {
+      title,
+      description,
+      alternates: {
+        canonical: `${BASE_URL}/${gender.toLowerCase()}/${category.toLowerCase()}/${subCategory.toLowerCase()}`,
+      },
+      openGraph: {
+        title,
+        description,
+        images: [activeSub?.collectionBackgroundImage?.url || cat?.collectionBackgroundImage?.url || ''],
+      }
+    };
+  } catch {
+    return { title: 'Collections | LINJIN LUXURY' };
+  }
+}
+
+// --- 生成静态路径 (SSG) ---
 export async function generateStaticParams() {
   const GET_ALL_PATHS = gql`
     query GetAllPaths {
@@ -154,40 +199,8 @@ export async function generateStaticParams() {
       }
     }
     return paths;
-  } catch (error) {
+  } catch {
     return [];
-  }
-}
-
-// --- 生成元数据 ---
-export async function generateMetadata({ params }: { params: Promise<{ gender: string; category: string; subCategory: string }> }): Promise<Metadata> {
-  const { gender, category, subCategory } = await params;
-  const internalSlug = getInternalSlug(gender, category);
-  
-  try {
-    const catRes: any = await hygraph.request(GET_CATEGORY_BY_SLUG, {
-      categorySlug: internalSlug,
-      genderSlug: gender.toLowerCase()
-    });
-    
-    const cat = catRes.categories[0];
-    const title = `${category.toUpperCase()} | ${gender.toUpperCase()} COLLECTION | LINJIN LUXURY`;
-    const description = cat?.collectionDescription || `Explore the finest ${gender} ${category} at LINJIN LUXURY.`;
-
-    return {
-      title,
-      description,
-      alternates: {
-        canonical: `${BASE_URL}/${gender.toLowerCase()}/${category.toLowerCase()}/${subCategory.toLowerCase()}`,
-      },
-      openGraph: {
-        title,
-        description,
-        images: [cat?.collectionBackgroundImage?.url || ''],
-      }
-    };
-  } catch (e) {
-    return { title: 'Collection | LINJIN LUXURY' };
   }
 }
 
@@ -206,22 +219,19 @@ export default async function CategoryPage({ params }: { params: Promise<{ gende
   let productRes: any = null;
 
   try {
-    // 1. 获取分类基础信息
     const catData: any = await hygraph.request(GET_CATEGORY_BY_SLUG, {
       categorySlug: internalCategorySlug,
       genderSlug: gender
     });
     currentCategory = catData.categories[0];
 
-    // 2. 获取产品列表
     if (currentCategory) {
       const query = getProductsQuery(isAll);
       const variables: any = {
         categoryID: currentCategory.id,
         genderSlug: gender,
+        ...(!isAll && { subCategorySlug: subCategory })
       };
-      if (!isAll) variables.subCategorySlug = subCategory;
-
       productRes = await hygraph.request(query, variables);
     }
   } catch (error) {
@@ -231,12 +241,6 @@ export default async function CategoryPage({ params }: { params: Promise<{ gende
   if (!currentCategory) notFound();
 
   // --- 渲染逻辑处理 ---
-  const getUrl = (imgField: any) => {
-    if (Array.isArray(imgField) && imgField.length > 0) return imgField[0].url;
-    if (imgField && imgField.url) return imgField.url;
-    return "";
-  };
-
   const activeSubCategoryData = isAll 
     ? null 
     : currentCategory.subCategories.find((sub: any) => sub.slug === subCategory);
@@ -249,24 +253,20 @@ export default async function CategoryPage({ params }: { params: Promise<{ gende
     ? currentCategory.collectionDescription 
     : (activeSubCategoryData?.collectionDescription || currentCategory.collectionDescription);
 
-  const finalImageUrl = isAll 
-    ? getUrl(currentCategory.collectionBackgroundImage) 
-    : (getUrl(activeSubCategoryData?.collectionBackgroundImage) || getUrl(currentCategory.collectionBackgroundImage));
+  const finalImageUrl = (isAll 
+    ? currentCategory.collectionBackgroundImage?.url 
+    : (activeSubCategoryData?.collectionBackgroundImage?.url || currentCategory.collectionBackgroundImage?.url)) || "";
 
-  /**
-   * 🌟 数据清洗处理：
-   * 将 variants 里的内容根据 ProductVariant 模型进行提取
-   * 增加 defaultVariantId 的提取，确保列表页红心能对应到具体的变体（颜色）
-   */
+  // 数据清洗：格式化产品，确保传给客户端组件的数据干净
   const formattedProducts = productRes?.products?.map((prod: any) => {
     const realVariants = prod.variants?.filter((v: any) => v.id) || [];
     const firstVariant = realVariants[0] || {};
 
     return {
       ...prod,
-      defaultVariantId: firstVariant.id || null, // 👈 传给客户端组件的核心字段
+      defaultVariantId: firstVariant.id || null,
       isNew: prod.isNew || false, 
-      productColorEnum: firstVariant.productColorEnum || null,
+      productColorEnum: firstVariant.productColorEnum || 'Classic',
       images: firstVariant.images || []
     };
   }) || [];
@@ -280,6 +280,17 @@ export default async function CategoryPage({ params }: { params: Promise<{ gende
           currentCategory.name
         ))}
       </Script>
+
+      {/* 🌟 SEO/GEO 语义增强层 (视觉隐藏，仅供爬虫抓取关键词) */}
+      <section className="sr-only" aria-hidden="true">
+        <h1>{displayTitle} - LINJIN LUXURY</h1>
+        <p>{displayDesc}</p>
+        <ul>
+          {formattedProducts.map((p: any) => (
+            <li key={p.id}>{p.name} - {p.material || 'Handcrafted Luxury Leather'}</li>
+          ))}
+        </ul>
+      </section>
 
       <ProductListClient 
         initialProducts={formattedProducts}

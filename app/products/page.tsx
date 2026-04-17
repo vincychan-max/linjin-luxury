@@ -3,62 +3,66 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { hygraph } from '@/lib/hygraph';
 
-// 缓存设置：每小时更新一次页面内容
-export const revalidate = 3600; 
-export const dynamicParams = true; 
+/** ====================== ISR ====================== */
+export const revalidate = 3600;
+export const dynamicParams = true;
 
+/** ====================== Types ====================== */
 interface Product {
-  id: string; 
-  name: string; 
-  slug: string; 
+  id: string;
+  name: string;
+  slug: string;
   price: number;
-  // 🌟 修改：适配变体图片结构
   variants: { images: { url: string }[] }[];
 }
 
-// 1. 增强型 Metadata
+/** ====================== SEO ====================== */
+const BASE_URL = 'https://www.linjinluxury.com';
+
+/** ====================== Metadata ====================== */
 export const metadata: Metadata = {
-  title: 'The Archive | Limited Leather Editions | LINJIN LUXURY Atelier',
-  description: 'Exclusive limited production leather goods from LINJIN LUXURY. Curated editions for private clients and M2C private label solutions.',
-  alternates: { canonical: 'https://www.linjinluxury.com/limited' },
+  title: 'The Archive | Limited Leather Editions | LINJIN LUXURY',
+  description:
+    'Exclusive limited production leather goods and private label manufacturing archive from LINJIN LUXURY Atelier.',
+  alternates: {
+    canonical: `${BASE_URL}/limited`,
+  },
   openGraph: {
     title: 'The Archive | LINJIN LUXURY',
-    description: 'Exclusive Atelier Series & Private Label Production.',
-    url: 'https://www.linjinluxury.com/limited',
+    description:
+      'Luxury leather manufacturing archive & limited editions.',
+    url: `${BASE_URL}/limited`,
     siteName: 'LINJIN LUXURY',
     images: [
       {
-        url: 'https://www.linjinluxury.com/og-archive.jpg', 
+        url: `${BASE_URL}/og-archive.jpg`,
         width: 1200,
         height: 630,
-        alt: 'LINJIN LUXURY Archive Collection',
       },
     ],
-    locale: 'en_US',
     type: 'website',
   },
-}
+};
 
+/** ====================== Page ====================== */
 export default async function LimitedArchivePage() {
-  const formatCurrency = (price: number) => 
-    new Intl.NumberFormat('en-US', { 
-      style: 'currency', 
-      currency: 'USD', 
-      minimumFractionDigits: 0 
+  const formatCurrency = (price: number) =>
+    new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
     }).format(price);
 
-  /**
-   * 🌟 核心修正：
-   * 1. 删除了根层的 images 查询。
-   * 2. 增加了从第一个变体获取第一张图片的逻辑。
-   */
-  const { products } = await hygraph.request<{ products: Product[] }>(`
-    query GetAllLimited {
+  /** ====================== Data ====================== */
+  const data = await hygraph.request<{
+    products: Product[];
+  }>(`
+    query GetArchiveProducts {
       products(where: { isLimited: true }, orderBy: createdAt_DESC) {
-        id 
-        name 
-        slug 
-        price 
+        id
+        name
+        slug
+        price
         variants(first: 1) {
           ... on ProductVariant {
             images(first: 1) {
@@ -70,121 +74,171 @@ export default async function LimitedArchivePage() {
     }
   `);
 
-  // 数据清洗：将图片提取到顶层，方便组件使用
-  const formattedProducts = products.map(p => ({
-    ...p,
-    previewImage: p.variants?.[0]?.images?.[0]?.url || '/placeholder.jpg'
-  }));
+  const products =
+    data.products?.map((p) => ({
+      ...p,
+      previewImage:
+        p.variants?.[0]?.images?.[0]?.url || '/placeholder.jpg',
+    })) || [];
 
-  // 2. 生成 JSON-LD
+  /** ====================== JSON-LD (Archive 2.0 Core) ====================== */
   const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "CollectionPage",
-    "name": "The Archive - Limited Leather Editions",
-    "description": "Exclusive leather goods available for private label and bespoke orders.",
-    "url": "https://www.linjinluxury.com/limited",
-    "mainEntity": {
-      "@type": "ItemList",
-      "numberOfItems": formattedProducts.length,
-      "itemListElement": formattedProducts.map((product, index) => ({
-        "@type": "ListItem",
-        "position": index + 1,
-        "url": `https://www.linjinluxury.com/limited/${product.slug}`,
-        "name": product.name,
-        "image": product.previewImage
-      }))
-    }
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'CollectionPage',
+        '@id': `${BASE_URL}/limited#archive`,
+        name: 'The Archive - LINJIN LUXURY Limited Editions',
+        url: `${BASE_URL}/limited`,
+        description:
+          'Luxury leather manufacturing archive and limited production system.',
+
+        /** 🧠 AI ENTITY LAYER */
+        about: {
+          '@type': 'Thing',
+          name: 'Luxury Leather Manufacturing Archive',
+        },
+
+        keywords: [
+          'luxury leather bags',
+          'limited edition handbags',
+          'OEM leather manufacturer',
+          'private label manufacturing',
+          'Hong Kong leather atelier',
+        ],
+
+        mainEntity: {
+          '@type': 'ItemList',
+          name: 'Archive Product Cluster',
+          numberOfItems: products.length,
+
+          itemListElement: products.map((p, i) => ({
+            '@type': 'ListItem',
+            position: i + 1,
+
+            item: {
+              '@type': 'Product',
+              '@id': `${BASE_URL}/limited/${p.slug}#product`,
+              name: p.name,
+              url: `${BASE_URL}/limited/${p.slug}`,
+
+              image: p.previewImage,
+
+              brand: {
+                '@type': 'Brand',
+                name: 'LINJIN LUXURY',
+              },
+
+              offers: {
+                '@type': 'Offer',
+                price: p.price,
+                priceCurrency: 'USD',
+                availability:
+                  'https://schema.org/InStock',
+              },
+            },
+          })),
+        },
+      },
+    ],
   };
 
+  /** ====================== UI ====================== */
   return (
-    <main id="limited-archive-view" className="bg-[#0a0a0a] min-h-screen text-white pt-40 pb-24 px-6 md:px-24 antialiased selection:bg-white selection:text-black">
-      
+    <main
+      id="archive-page"
+      className="bg-black text-white min-h-screen pt-40 pb-32 px-6 md:px-20"
+    >
+      {/* JSON-LD */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c'),
+        }}
       />
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        body:has(#limited-archive-view) header,
-        body:has(#limited-archive-view) nav {
-          background-color: transparent !important;
-          border-bottom: 1px solid rgba(255,255,255,0.05) !important;
-        }
-        body:has(#limited-archive-view) header a,
-        body:has(#limited-archive-view) header span,
-        body:has(#limited-archive-view) header p,
-        body:has(#limited-archive-view) header div:not([class*="badge"]):not([class*="count"]) {
-          color: #ffffff !important;
-        }
-        body:has(#limited-archive-view) header svg,
-        body:has(#limited-archive-view) header img {
-          filter: brightness(0) invert(1) !important;
-        }
-        body:has(#limited-archive-view) header [class*="badge"],
-        body:has(#limited-archive-view) header [class*="count"] {
-          background-color: #ffffff !important;
-          color: #000000 !important;
-        }
-      ` }} />
+      {/* ====================== AI ENTITY LAYER ====================== */}
+      <section className="sr-only" aria-hidden="true">
+        <h2>LINJIN LUXURY Manufacturing Archive</h2>
+        <p>
+          Archive system representing limited leather production,
+          OEM manufacturing, and private label atelier network.
+        </p>
+        <ul>
+          <li>Luxury Leather Manufacturing Cluster</li>
+          <li>Limited Edition Production System</li>
+          <li>Private Label OEM Capability</li>
+          <li>Hong Kong Atelier Network</li>
+        </ul>
+      </section>
 
-      <div className="max-w-[1500px] mx-auto">
-        <header className="mb-24 flex flex-col md:flex-row justify-between items-end border-b border-white/5 pb-10">
-          <div className="max-w-xl">
-            <span className="text-white/40 text-[9px] font-bold uppercase tracking-[0.5em] mb-4 block">Atelier Registry // 2026</span>
-            <h1 className="text-5xl md:text-7xl font-light tracking-tighter uppercase mb-6 leading-none">
-              The <span className="italic font-serif text-neutral-500">Archive</span>
-            </h1>
-            
-            <p className="text-white/30 text-[12px] uppercase tracking-[0.2em] leading-loose max-w-sm">
-              Limited production pieces available for private clients, brands, and selected partners.
-            </p>
-          </div>
-          <div className="hidden md:block text-[9px] text-white/20 uppercase tracking-[0.4em] mb-2">Total {formattedProducts.length} Editions</div>
-        </header>
+      {/* ====================== Header ====================== */}
+      <header className="max-w-6xl mx-auto mb-24 border-b border-white/10 pb-10">
+        <span className="text-[10px] tracking-[0.4em] text-white/40 uppercase">
+          Atelier Registry / 2026
+        </span>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-20">
-          {formattedProducts.map((product) => (
-            <Link key={product.id} href={`/limited/${product.slug}`} className="group block">
-              <div className="relative aspect-[4/5] bg-neutral-900 overflow-hidden mb-8 border border-white/5">
-                <Image 
-                  src={product.previewImage} 
-                  alt={product.name} 
-                  fill 
-                  className="object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-[2s]" 
-                />
-              </div>
+        <h1 className="text-5xl md:text-7xl font-light uppercase mt-6">
+          The <span className="italic text-white/60">Archive</span>
+        </h1>
 
-              <div className="flex justify-between items-start border-l border-white/10 pl-5 group-hover:border-white transition-colors duration-500">
-                <div className="max-w-[70%]">
-                  <h2 className="text-sm font-bold uppercase tracking-[0.15em] mb-1 truncate">{product.name}</h2>
-                  <p className="text-[9px] text-white/20 uppercase tracking-widest italic font-serif">Atelier Series / Archive</p>
-                  <p className="text-[9px] text-white/40 mt-3 uppercase tracking-[0.2em]">
-                    Customizable for Private Label
-                  </p>
-                </div>
-                
-                <div className="text-right">
-                  <p className="text-base font-serif italic text-white/80">{formatCurrency(product.price)}</p>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
+        <p className="text-white/40 mt-6 text-sm max-w-xl leading-relaxed">
+          Limited production leather goods, private label manufacturing,
+          and bespoke atelier editions.
+        </p>
 
-        <div className="mt-40 pt-20 border-t border-white/5 text-center">
-          <p className="text-[10px] text-white/20 uppercase tracking-[0.4em] mb-6">Custom Atelier Request</p>
-          <p className="text-white/40 text-[12px] uppercase tracking-[0.2em] mb-10 max-w-md mx-auto">
-            For bespoke designs, private label production, or bulk inquiries, contact our atelier team.
-          </p>
+        <p className="text-[10px] text-white/20 mt-6 uppercase tracking-[0.3em]">
+          Total {products.length} Editions
+        </p>
+      </header>
 
-          <Link 
-            href="/contact" 
-            className="inline-block bg-white text-black px-12 py-5 text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-neutral-200 transition-colors duration-300"
+      {/* ====================== Grid ====================== */}
+      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-16">
+        {products.map((p) => (
+          <Link
+            key={p.id}
+            href={`/limited/${p.slug}`}
+            className="group"
           >
-            Contact Atelier →
+            <div className="relative aspect-[4/5] bg-neutral-900 overflow-hidden mb-6">
+              <Image
+                src={p.previewImage}
+                alt={p.name}
+                fill
+                className="object-cover group-hover:scale-105 transition duration-700 opacity-80 group-hover:opacity-100"
+              />
+            </div>
+
+            <h2 className="text-sm uppercase tracking-[0.2em] font-light">
+              {p.name}
+            </h2>
+
+            <p className="text-[10px] text-white/40 mt-2 uppercase tracking-[0.3em]">
+              Limited Archive / Atelier Series
+            </p>
+
+            <p className="mt-4 text-white/70">
+              {formatCurrency(p.price)}
+            </p>
           </Link>
+        ))}
+      </section>
+
+      {/* ====================== Internal Link Graph ====================== */}
+      <footer className="mt-40 pt-20 border-t border-white/10 text-center">
+        <p className="text-[10px] text-white/30 uppercase tracking-[0.4em] mb-10">
+          Explore Archive Clusters
+        </p>
+
+        <div className="flex flex-wrap justify-center gap-10 text-[10px] uppercase tracking-[0.3em]">
+          <Link href="/collection/women">Women Cluster</Link>
+          <Link href="/collection/men">Men Cluster</Link>
+          <Link href="/collection/all?type=limited">
+            Limited Editions
+          </Link>
+          <Link href="/contact">OEM Inquiry</Link>
         </div>
-      </div>
+      </footer>
     </main>
   );
 }
