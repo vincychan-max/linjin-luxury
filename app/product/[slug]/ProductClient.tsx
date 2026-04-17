@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { Truck, Phone, Plus, ShieldCheck } from 'lucide-react'; 
 import { toast } from 'sonner'; 
 import { useRouter } from 'next/navigation';
+import Link from 'next/link'; // ✅ 新增：引入 Next.js 路由跳转组件
 
 import { useWishlistStore } from '@/lib/store/useWishlistStore';
 
@@ -134,7 +135,6 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
         image: currentImages[0]?.url || '', 
         color: selectedColor, 
         size: selectedSize,
-        // 如果你的 store 需要 material 字段，请确保它存在于 CartItem 定义中，否则请删除
       };
       await addToCart(cartItem, user?.id);
       toast.success('Added to bag', {
@@ -177,6 +177,32 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
           
           <div className="w-full lg:w-[60%] flex flex-col">
             <div className="mb-10 space-y-2">
+              
+              {/* ✅ 新增：将面包屑导航放在标题上方 */}
+              <nav aria-label="Breadcrumb" className="mb-3">
+                <ol className="flex flex-wrap items-center text-[10px] uppercase tracking-[0.15em] text-zinc-400">
+                  <li>
+                    <Link href="/" className="hover:text-black transition-colors">Home</Link>
+                  </li>
+                  
+                  {product.gender && (
+                    <li className="flex items-center before:content-['/'] before:mx-2 before:text-zinc-200">
+                      <Link href={`/${product.gender.slug}`} className="hover:text-black transition-colors">
+                        {product.gender.name}
+                      </Link>
+                    </li>
+                  )}
+
+                  {product.category && (
+                    <li className="flex items-center before:content-['/'] before:mx-2 before:text-zinc-200">
+                      <Link href={`/${product.gender?.slug || 'shop'}/${product.category.slug}/all`} className="hover:text-black transition-colors">
+                        {product.category.name}
+                      </Link>
+                    </li>
+                  )}
+                </ol>
+              </nav>
+
               <h1 className="text-xl font-medium lowercase capitalize tracking-[0.1em] leading-tight text-zinc-900">
                 {product.name}
               </h1>

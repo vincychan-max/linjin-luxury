@@ -4,7 +4,7 @@ import { gql } from 'graphql-request';
 import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
 import Script from 'next/script';
-import { Link } from 'lucide-react';
+// 删除了错误的 lucide-react Link 引入
 
 /**
  * 1. 类型定义 (Next.js 15 标准)
@@ -244,27 +244,7 @@ export default async function ProductPage({ params }: Props) {
           {JSON.stringify(jsonLd)}
         </Script>
 
-        {/* 垂直内链：面包屑 UI */}
-        <nav aria-label="Breadcrumb" className="max-w-screen-xl mx-auto px-4 pt-6 pb-2">
-          <ol className="flex items-center space-x-2 text-[10px] uppercase tracking-widest text-zinc-400">
-            <li><Link href="/" className="hover:text-black transition-colors">Home</Link></li>
-            {product.gender && (
-               <li className="before:content-['/'] before:mx-2 before:text-zinc-200">
-                 <a href={`/${product.gender.slug}`} className="hover:text-black transition-colors">{product.gender.name}</a>
-               </li>
-            )}
-            {product.category && (
-              <li className="before:content-['/'] before:mx-2 before:text-zinc-200">
-                <a href={`/${product.gender?.slug}/${product.category.slug}/all`} className="hover:text-black text-zinc-800 font-medium transition-colors">
-                  {product.category.name}
-                </a>
-              </li>
-            )}
-            <li className="before:content-['/'] before:mx-2 before:text-zinc-200 truncate max-w-[100px] md:max-w-none">
-              {product.name}
-            </li>
-          </ol>
-        </nav>
+        {/* 已删除原本压在图片上的面包屑导航代码 */}
 
         {/* 交互核心组件 */}
         <ProductClient 
