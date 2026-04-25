@@ -4,7 +4,6 @@ import { gql } from 'graphql-request';
 import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
 import Script from 'next/script';
-// 删除了错误的 lucide-react Link 引入
 
 /**
  * 1. 类型定义 (Next.js 15 标准)
@@ -13,14 +12,11 @@ type Props = {
   params: Promise<{ slug: string }>;
 };
 
-// 保持 5 分钟验证一次，兼顾奢侈品库存变动与 CDN 性能
 export const revalidate = 300; 
 
 /**
  * 2. GraphQL 查询定义
  */
-
-// 核心查询：获取产品详情、SEO 覆盖字段及垂直内链分类
 const GET_PRODUCT_DEEP = gql`
   query GetProductDeep($slug: String!) {
     product(where: { slug: $slug }, stage: PUBLISHED) {
@@ -59,7 +55,6 @@ const GET_PRODUCT_DEEP = gql`
   }
 `;
 
-// 横向分发查询：获取同类目下的推荐单品，形成站内权重闭环
 const GET_RECOMMENDED_PRODUCTS = gql`
   query GetRecommendedProducts($currentId: ID!, $categorySlug: String) {
     products(
@@ -108,7 +103,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
     const firstImg = product.variants?.[0]?.images?.[0]?.url || `${baseUrl}/og-default.jpg`;
     
-    // 逻辑：SEO 专属字段优先级最高，无则使用产品名兜底
     const title = product.seoTitle || `${product.name} | LINJIN LUXURY`;
     const seoDescription = (product.seoDescription || product.description?.text || product.altText || product.name)
       .replace(/\s+/g, ' ')
@@ -139,9 +133,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  */
 export default async function ProductPage({ params }: Props) {
   const { slug } = await params;
+  const baseUrl = 'https://www.linjinluxury.com';
 
   try {
-    // 并行请求数据，优化 LCP 性能
     const productData: any = await hygraph.request(GET_PRODUCT_DEEP, { slug });
     if (!productData?.product) return notFound();
 
@@ -152,7 +146,6 @@ export default async function ProductPage({ params }: Props) {
       categorySlug: product.category?.slug || ""
     });
 
-    // 为 JSON-LD 准备纯文本描述
     const jsonDescription = (product.seoDescription || product.description?.text || '')
       .replace(/\s+/g, ' ')
       .trim()
@@ -161,7 +154,11 @@ export default async function ProductPage({ params }: Props) {
     const variants = product.variants || [];
     const firstVariantImages = variants[0]?.images || [];
 
-    // 数据清洗，下传至 Client Component
+    // ✅ Fix 3: Image 空数组兜底
+    const validImages = firstVariantImages.length > 0 
+      ? firstVariantImages.map((img: any) => img.url)
+      : [`${baseUrl}/og-default.jpg`];
+
     const safeProduct = {
       ...product,
       description: product.description?.html || '',
@@ -179,39 +176,61 @@ export default async function ProductPage({ params }: Props) {
       images: p.variants?.[0]?.images || []
     })) || [];
 
-    // 结构化数据 (SEO + GEO 实体关联)
+    // ✅ Fix 6: 动态生成 priceValidUntil (当前时间往后加 1 年，免维护)
+    const nextYear = new Date();
+    nextYear.setFullYear(nextYear.getFullYear() + 1);
+    const validUntil = nextYear.toISOString().split('T')[0];
+
+    // 🚀 结构化数据终极版 (@graph 强化实体)
     const jsonLd = {
       "@context": "https://schema.org",
       "@graph": [
+        // ✅ Fix 5: 加入 Organization 强化品牌权威
+        {
+          "@type": "Organization",
+          "@id": `${baseUrl}/#organization`,
+          "name": "LINJIN LUXURY",
+          "url": baseUrl,
+          "logo": `${baseUrl}/logo.png`
+        },
         {
           "@type": "Product",
-          "@id": `https://www.linjinluxury.com/product/${product.slug}#product`,
+          "@id": `${baseUrl}/product/${product.slug}#product`,
           "name": product.name,
           "description": jsonDescription,
-          "image": firstVariantImages.map((img: any) => img.url),
+          "image": validImages, // ✅ Fix 3 应用
           "sku": product.id,
-          "brand": { "@type": "Brand", "name": "LINJIN LUXURY" },
-          "material": product.material,
+          "mpn": product.id,
+          "brand": { "@id": `${baseUrl}/#organization` }, // 关联上方 Organization
+          "material": product.material || "Full-grain Leather",
+          "color": product.variants?.[0]?.productColorEnum || "Black",
           "category": product.category?.name,
-          "isRelatedTo": recommendedProducts.map((p: any) => ({
-            "@type": "Product",
-            "name": p.name,
-            "url": `https://www.linjinluxury.com/product/${p.slug}`
-          })),
+          // ✅ Fix 4: 改用 isSimilarTo
+          ...(recommendedProducts.length > 0 && {
+            "isSimilarTo": recommendedProducts.map((p: any) => ({
+              "@type": "Product",
+              "name": p.name,
+              "url": `${baseUrl}/product/${p.slug}`
+            }))
+          }),
           "offers": {
             "@type": "Offer",
             "priceCurrency": "USD",
-            "price": product.price,
+            "price": product.price.toString(), // ✅ Fix 2: 转 string
+            "priceValidUntil": validUntil, // ✅ Fix 6 应用
             "itemCondition": "https://schema.org/NewCondition",
             "availability": product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-            "url": `https://www.linjinluxury.com/product/${product.slug}`,
+            "url": `${baseUrl}/product/${product.slug}`,
             "shippingDetails": {
               "@type": "OfferShippingDetails",
               "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "USD" },
+              "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "US" },
+              // ✅ Fix 7: 加入 shippingOrigin (提醒：确保这与你后台真实的仓储/发货地匹配)
+              "shippingOrigin": { "@type": "DefinedRegion", "addressCountry": "US" },
               "deliveryTime": {
                 "@type": "ShippingDeliveryTime",
-                "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 1, "unitCode": "DAY" },
-                "transitTime": { "@type": "QuantitativeValue", "minValue": 3, "maxValue": 7, "unitCode": "DAY" }
+                "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 1, "unitCode": "d" },
+                "transitTime": { "@type": "QuantitativeValue", "minValue": 3, "maxValue": 7, "unitCode": "d" }
               }
             }
           }
@@ -219,20 +238,26 @@ export default async function ProductPage({ params }: Props) {
         {
           "@type": "BreadcrumbList",
           "itemListElement": [
-            { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.linjinluxury.com" },
+            { "@type": "ListItem", "position": 1, "name": "Home", "item": baseUrl },
             { 
               "@type": "ListItem", 
               "position": 2, 
               "name": product.gender?.name || "Shop", 
-              "item": `https://www.linjinluxury.com/${product.gender?.slug || 'shop'}` 
+              // ✅ Fix 8: 真实路径结构映射
+              "item": `${baseUrl}/${product.gender?.slug || 'shop'}` 
             },
             { 
               "@type": "ListItem", 
               "position": 3, 
               "name": product.category?.name || "Collection", 
-              "item": `https://www.linjinluxury.com/${product.gender?.slug}/${product.category?.slug}/all` 
+              "item": `${baseUrl}/${product.gender?.slug || 'shop'}/${product.category?.slug || 'all'}` 
             },
-            { "@type": "ListItem", "position": 4, "name": product.name, "item": `https://www.linjinluxury.com/product/${product.slug}` }
+            { 
+              "@type": "ListItem", 
+              "position": 4, 
+              "name": product.name, 
+              "item": `${baseUrl}/product/${product.slug}` 
+            }
           ]
         }
       ]
@@ -244,9 +269,6 @@ export default async function ProductPage({ params }: Props) {
           {JSON.stringify(jsonLd)}
         </Script>
 
-        {/* 已删除原本压在图片上的面包屑导航代码 */}
-
-        {/* 交互核心组件 */}
         <ProductClient 
           product={safeProduct} 
           recommendedProducts={recommendedProducts} 
@@ -256,7 +278,6 @@ export default async function ProductPage({ params }: Props) {
 
   } catch (error) {
     console.error('🔥 LinJin Build Error:', error);
-    // 这里的兜底可以根据你的 UI 风格进行调整
     return notFound();
   }
 }

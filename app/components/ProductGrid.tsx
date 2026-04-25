@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 
-// 定义产品类型
+/** ====================== 类型定义 ====================== */
 type Product = {
   id: string;
   name: string;
@@ -11,16 +11,18 @@ type Product = {
   price: number;
   images: string[];
   isNew?: boolean;
-  material?: string; 
+  isLimited?: boolean;    // ✅ 新增：对应后台的布尔值开关
+  material?: string;
+  categorySlug?: string;  // 兼容旧的分类判断
 };
 
-// Props 接口：增加 initialEndCursor 以解决报错
+// Props 接口
 interface ProductGridProps {
   initialProducts: Product[];
   category: string | null;
   gender: string | null;
-  page?: number | null;               // 改为可选，因为 Best Sellers 可能不传
-  initialEndCursor?: string | null;    // 🌟 新增：支持游标分页，解决红线报错
+  page?: number | null;               // 可选
+  initialEndCursor?: string | null;    // 支持游标分页
 }
 
 export default function ProductGrid({
@@ -49,37 +51,58 @@ export default function ProductGrid({
     <div className="bg-white">
       {/* 产品网格 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-16 md:gap-y-24">
-        {initialProducts.map((product, index) => (
-          <article key={product.id} className="group">
-            <Link href={`/product/${product.slug}`} className="block">
-              <div className="relative aspect-[3/4] overflow-hidden bg-[#FBFBFB] mb-8">
-                <Image
-                  src={product.images[0] || '/images/placeholder.jpg'}
-                  alt={product.name}
-                  fill
-                  sizes="(max-width: 768px) 50vw, 25vw"
-                  className="object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-105"
-                  // 只有在第一页且是前几个产品时开启优先加载
-                  priority={page === 1 && index < 8}
-                />
-                {product.isNew && (
-                  <span className="absolute top-4 left-4 text-[9px] font-bold tracking-tighter uppercase bg-black text-white px-2 py-1">
-                    New
-                  </span>
-                )}
-              </div>
+        {initialProducts.map((product, index) => {
+          /** * ✅ 核心逻辑：路径分流
+           * 优先判断后台的 isLimited 开关，
+           * 其次兼容 categorySlug 是否为 'limited-edition'
+           */
+          const isLimitedItem = product.isLimited || product.categorySlug === 'limited-edition';
+          
+          const productHref = isLimitedItem 
+            ? `/limited/${product.slug}` 
+            : `/product/${product.slug}`;
 
-              <div className="text-center px-4">
-                <h3 className="text-[11px] font-bold tracking-[0.2em] uppercase text-black mb-3 leading-tight">
-                  {product.name}
-                </h3>
-                <p className="text-[12px] font-medium tracking-[0.1em] text-black">
-                  ${Number(product.price).toLocaleString('en-US')}
-                </p>
-              </div>
-            </Link>
-          </article>
-        ))}
+          return (
+            <article key={product.id} className="group">
+              <Link href={productHref} className="block">
+                <div className="relative aspect-[3/4] overflow-hidden bg-[#FBFBFB] mb-8">
+                  <Image
+                    src={product.images[0] || '/images/placeholder.jpg'}
+                    alt={product.name}
+                    fill
+                    sizes="(max-width: 768px) 50vw, 25vw"
+                    className="object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-105"
+                    // 只有在第一页且是前几个产品时开启优先加载
+                    priority={page === 1 && index < 8}
+                  />
+                  
+                  {/* 状态标签：如果是限量款或新品则显示 */}
+                  <div className="absolute top-4 left-4 flex flex-col gap-2">
+                    {isLimitedItem && (
+                      <span className="text-[9px] font-bold tracking-tighter uppercase bg-black text-white px-2 py-1">
+                        Limited
+                      </span>
+                    )}
+                    {product.isNew && !isLimitedItem && (
+                      <span className="text-[9px] font-bold tracking-tighter uppercase bg-black text-white px-2 py-1">
+                        New
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="text-center px-4">
+                  <h3 className="text-[11px] font-bold tracking-[0.2em] uppercase text-black mb-3 leading-tight">
+                    {product.name}
+                  </h3>
+                  <p className="text-[12px] font-medium tracking-[0.1em] text-black">
+                    ${Number(product.price).toLocaleString('en-US')}
+                  </p>
+                </div>
+              </Link>
+            </article>
+          );
+        })}
       </div>
 
       {/* 分页状态展示 */}

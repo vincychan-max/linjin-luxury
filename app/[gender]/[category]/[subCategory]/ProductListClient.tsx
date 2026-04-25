@@ -15,6 +15,7 @@ interface Product {
   name: string;
   slug: string;
   price: number;
+  isLimited?: boolean; // ✨ 新增：支持限量款判断
   defaultVariantId: string;
   images?: { url: string }[];
   variants?: { images: { url: string }[] }[];
@@ -29,7 +30,7 @@ interface ProductListProps {
   initialProducts: Product[];
   gender: string;
   category: string;
-  subCategory: string; // ✨ 修复点 1：在这里添加 subCategory 定义
+  subCategory: string; 
   collectionTitle?: string;
   collectionDescription?: string;
   collectionBackgroundImageUrl?: string;
@@ -55,10 +56,15 @@ const ProductCard = memo(({
   const mainImg = product.variants?.[0]?.images?.[0]?.url || product.images?.[0]?.url || '/placeholder.jpg';
   const hoverImg = product.variants?.[0]?.images?.[1]?.url || mainImg;
 
+  // ✨ 动态计算链接路径：如果是限量款走 /limited/，否则走 /product/
+  const productHref = product.isLimited 
+    ? `/limited/${product.slug}` 
+    : `/product/${product.slug}`;
+
   return (
     <div className="group flex flex-col">
       <div className="relative aspect-[4/5] bg-[#F7F7F7] overflow-hidden">
-        <Link href={`/product/${product.slug}`}>
+        <Link href={productHref}>
           <div className="absolute inset-0">
             <Image 
               src={mainImg} 
@@ -116,7 +122,7 @@ export default function ProductListClient({
   initialProducts, 
   gender, 
   category, 
-  subCategory, // ✨ 修复点 2：在解构参数中接收 subCategory
+  subCategory, 
   collectionTitle, 
   collectionDescription, 
   collectionBackgroundImageUrl, 
@@ -158,7 +164,7 @@ export default function ProductListClient({
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
-  // 修复全局点击：使用 ref 准确判断
+  // 修复全局点击
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (filterRef.current && !filterRef.current.contains(event.target as Node)) {

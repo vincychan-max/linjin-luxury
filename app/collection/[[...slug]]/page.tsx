@@ -14,6 +14,8 @@ type Product = {
   images: string[];
   isNew?: boolean;
   material?: string;
+  categorySlug?: string;
+  isLimited?: boolean; // ✅ 新增：布尔值开关
 };
 
 type Props = {
@@ -22,11 +24,11 @@ type Props = {
 };
 
 /** ====================== 常量 ====================== */
-export const revalidate = 3600; // 1小时刷新一次，适合集合页
+export const revalidate = 3600; // 1小时刷新一次
 const BASE_URL = 'https://www.linjinluxury.com';
 const PAGE_SIZE = 12;
 
-/** ====================== GraphQL 查询（已优化） ====================== */
+/** ====================== GraphQL 查询（增加 isLimited 字段） ====================== */
 const GET_COLLECTION_PRODUCTS = gql`
   query GetCollectionProducts(
     $where: ProductWhereInput
@@ -51,6 +53,11 @@ const GET_COLLECTION_PRODUCTS = gql`
           price
           isNew
           material
+          # ✅ 获取限量款布尔值开关
+          isLimited
+          category {
+            slug
+          }
           variants(first: 1) {
             ... on ProductVariant {
               images(first: 1) {
@@ -64,21 +71,16 @@ const GET_COLLECTION_PRODUCTS = gql`
   }
 `;
 
-/** ====================== 静态路径生成（提升 SEO + 首屏速度） ====================== */
+/** ====================== 静态路径生成 ====================== */
 export async function generateStaticParams() {
-  // 生成核心路径（all / women / men + 常见分类）
-  // 你可以后续从 Hygraph 动态拉取更多分类
   return [
     { slug: ['all'] },
     { slug: ['women'] },
     { slug: ['men'] },
-    // 示例：如果有具体分类，可在这里添加
-    // { slug: ['women', 'handbags'] },
-    // { slug: ['men', 'briefcases'] },
   ];
 }
 
-/** ====================== 最强动态 Metadata（已修复 Canonical + GEO） ====================== */
+/** ====================== 动态 Metadata ====================== */
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { slug } = await params;
   const resolvedSearch = await searchParams;
@@ -95,8 +97,6 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
     : 'Collections';
 
   const title = `${genderLabel} ${categoryLabel} ${page > 1 ? `- Page ${page}` : ''} | LINJIN LUXURY`;
-
-  // Self-referential Canonical（分页页指向自身，防止重复内容惩罚）
   const basePath = `/collection/${slug?.join('/') || 'all'}`;
   const canonicalUrl = `${BASE_URL}${basePath}${page > 1 ? `?page=${page}` : ''}`;
 
@@ -117,7 +117,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
     },
     openGraph: {
       title,
-      description: `Shop LINJIN LUXURY ${genderLabel} ${categoryLabel}. Premium leather handbags, men bags & accessories. Factory-direct OEM & wholesale from Hong Kong.`,
+      description: `Shop LINJIN LUXURY ${genderLabel} ${categoryLabel}. Premium leather handbags, men bags & accessories.`,
       url: canonicalUrl,
       images: [{ url: `${BASE_URL}/images/collection-og.jpg`, width: 1200, height: 630 }],
       type: 'website',
@@ -136,7 +136,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   };
 }
 
-/** ====================== 主页面组件（完整优化版） ====================== */
+/** ====================== 主页面组件 ====================== */
 export default async function CollectionPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const resolvedSearch = await searchParams;
@@ -175,6 +175,9 @@ export default async function CollectionPage({ params, searchParams }: Props) {
         price: p.price,
         isNew: p.isNew,
         material: p.material,
+        // ✅ 核心数据映射：优先使用 isLimited 开关
+        isLimited: p.isLimited || false,
+        categorySlug: p.category?.slug || '',
         images: p.variants?.[0]?.images?.map((img: any) => img.url) || [],
       };
     });
@@ -184,7 +187,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
     console.error('🔥 Collection Page Data Fetch Error:', e);
   }
 
-  /** ====================== 最强 JSON-LD（CollectionPage + ItemList） ====================== */
+  /** ====================== 最强 JSON-LD（根据 isLimited 区分链接） ====================== */
   const canonicalUrl = `${BASE_URL}/collection/${slug?.join('/') || 'all'}${
     page > 1 ? `?page=${page}` : ''
   }`;
@@ -238,12 +241,17 @@ export default async function CollectionPage({ params, searchParams }: Props) {
         mainEntity: {
           '@type': 'ItemList',
           numberOfItems: totalCount,
-          itemListElement: initialProducts.map((p, i) => ({
-            '@type': 'ListItem',
-            position: (page - 1) * PAGE_SIZE + i + 1,
-            url: `${BASE_URL}/product/${p.slug}`,
-            name: p.name,
-          })),
+          itemListElement: initialProducts.map((p, i) => {
+            // ✅ 逻辑：根据 isLimited 开关决定 JSON-LD 里的 URL
+            const path = p.isLimited ? '/limited/' : '/product/';
+            
+            return {
+              '@type': 'ListItem',
+              position: (page - 1) * PAGE_SIZE + i + 1,
+              url: `${BASE_URL}${path}${p.slug}`,
+              name: p.name,
+            };
+          }),
         },
       },
     ],
@@ -270,7 +278,6 @@ export default async function CollectionPage({ params, searchParams }: Props) {
           {categorySlug ? categorySlug.replace('-', ' ') : 'COLLECTION'}
         </h1>
 
-        {/* GEO + 品牌叙事 */}
         <div className="max-w-xl mx-auto">
           <p className="text-[11px] uppercase tracking-[0.3em] leading-[2.6] text-black/50 font-light px-4">
             Restrained design language rooted in material quality. <br />
@@ -280,7 +287,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
         </div>
       </header>
 
-      {/* Gender Navigation（内链权重） */}
+      {/* Gender Navigation */}
       <nav className="flex justify-center gap-12 mb-28">
         {['all', 'women', 'men'].map((t) => (
           <Link
@@ -308,7 +315,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
         />
       </section>
 
-      {/* Pagination（已使用 totalCount 精确判断） */}
+      {/* Pagination */}
       <footer className="flex justify-center items-center gap-12 pb-40">
         {page > 1 ? (
           <Link

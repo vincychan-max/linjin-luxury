@@ -33,7 +33,7 @@ const GET_CATEGORY_BY_SLUG = gql`
 
 /**
  * 2. 动态生成产品查询语句
- * 🌟 优化：加入 orderBy: createdAt_DESC 确保新品优先展示
+ * 🌟 优化：加入 isLimited 字段
  */
 function getProductsQuery(isAll: boolean) {
   const productFields = `
@@ -42,6 +42,7 @@ function getProductsQuery(isAll: boolean) {
     slug 
     price 
     isNew
+    isLimited
     material
     variants {
       ... on ProductVariant {
@@ -113,23 +114,28 @@ function generateCombinedSchema(products: any[], params: { gender: string; categ
     "@type": "ItemList",
     "name": `${categoryName} Collection | LINJIN LUXURY`,
     "numberOfItems": products.length,
-    "itemListElement": products.map((prod, index) => ({
-      "@type": "ListItem",
-      "position": index + 1,
-      "item": {
-        "@type": "Product",
-        "url": `${BASE_URL}/product/${prod.slug}`,
-        "name": prod.name,
-        "image": prod.images?.[0]?.url || "",
-        "brand": { "@type": "Brand", "name": "LINJIN LUXURY" },
-        "offers": {
-          "@type": "Offer",
-          "price": prod.price,
-          "priceCurrency": "USD",
-          "availability": "https://schema.org/InStock"
+    "itemListElement": products.map((prod, index) => {
+      // ✅ 修复：Schema 里的链接也要根据 isLimited 区分
+      const path = prod.isLimited ? '/limited/' : '/product/';
+      
+      return {
+        "@type": "ListItem",
+        "position": index + 1,
+        "item": {
+          "@type": "Product",
+          "url": `${BASE_URL}${path}${prod.slug}`,
+          "name": prod.name,
+          "image": prod.images?.[0]?.url || "",
+          "brand": { "@type": "Brand", "name": "LINJIN LUXURY" },
+          "offers": {
+            "@type": "Offer",
+            "price": prod.price,
+            "priceCurrency": "USD",
+            "availability": "https://schema.org/InStock"
+          }
         }
-      }
-    }))
+      };
+    })
   };
 
   return {
@@ -257,15 +263,20 @@ export default async function CategoryPage({ params }: { params: Promise<{ gende
     ? currentCategory.collectionBackgroundImage?.url 
     : (activeSubCategoryData?.collectionBackgroundImage?.url || currentCategory.collectionBackgroundImage?.url)) || "";
 
-  // 数据清洗：格式化产品，确保传给客户端组件的数据干净
+  // ✅ 核心修改：数据清洗映射，确保 isLimited 传给客户端
   const formattedProducts = productRes?.products?.map((prod: any) => {
     const realVariants = prod.variants?.filter((v: any) => v.id) || [];
     const firstVariant = realVariants[0] || {};
 
     return {
-      ...prod,
+      id: prod.id,
+      name: prod.name,
+      slug: prod.slug,
+      price: prod.price,
+      isNew: prod.isNew || false,
+      isLimited: prod.isLimited || false, // ✅ 新增：传递限量标记
+      material: prod.material,
       defaultVariantId: firstVariant.id || null,
-      isNew: prod.isNew || false, 
       productColorEnum: firstVariant.productColorEnum || 'Classic',
       images: firstVariant.images || []
     };
@@ -281,13 +292,15 @@ export default async function CategoryPage({ params }: { params: Promise<{ gende
         ))}
       </Script>
 
-      {/* 🌟 SEO/GEO 语义增强层 (视觉隐藏，仅供爬虫抓取关键词) */}
+      {/* 🌟 SEO/GEO 语义增强层 */}
       <section className="sr-only" aria-hidden="true">
         <h1>{displayTitle} - LINJIN LUXURY</h1>
         <p>{displayDesc}</p>
         <ul>
           {formattedProducts.map((p: any) => (
-            <li key={p.id}>{p.name} - {p.material || 'Handcrafted Luxury Leather'}</li>
+            <li key={p.id}>
+              {p.name} - {p.material || 'Handcrafted Luxury Leather'}
+            </li>
           ))}
         </ul>
       </section>
