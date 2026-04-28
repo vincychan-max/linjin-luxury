@@ -400,7 +400,7 @@ export default async function HomePage() {
             </div>
 
             <div className="mt-24 flex justify-center">
-              <Link href="/collection/all" className="group flex flex-col items-center">
+              <Link href="/limited" className="group flex flex-col items-center">
                 <span className="text-[10px] text-white/40 uppercase tracking-[0.5em] mb-4 group-hover:text-white transition-colors">
                   View All Private Editions
                 </span>
