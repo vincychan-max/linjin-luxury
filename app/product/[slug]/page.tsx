@@ -31,7 +31,7 @@ const GET_PRODUCT_DEEP = gql`
         text 
       }
       dimensions
-      materialsCare { html }
+      materialsCare { html } # 这里返回的是对象，需要提取 .html
       material
       altText
       sizes
@@ -79,7 +79,18 @@ const GET_RECOMMENDED_PRODUCTS = gql`
 `;
 
 /**
+ * 辅助函数：构造 SEO 理想路径 (Real Path)
+ */
+function getRealPath(product: any, baseUrl: string) {
+  const gender = product.gender?.slug || 'shop';
+  const category = product.category?.slug || 'all';
+  // 构造真实路径：/[gender]/[category]/[slug]
+  return `${baseUrl}/${gender}/${category}/${product.slug}`;
+}
+
+/**
  * 3. 静态路径生成 (SSG)
+ * 因为文件在 app/product/[slug]，所以这里只需返回 slug
  */
 export async function generateStaticParams() {
   const GET_ALL_SLUGS = gql` query { products(stage: PUBLISHED) { slug } } `;
@@ -90,7 +101,7 @@ export async function generateStaticParams() {
 }
 
 /**
- * 4. 动态 Metadata (SEO 权重策略)
+ * 4. 动态 Metadata (应用层级化 Canonical 策略)
  */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
@@ -101,6 +112,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const product = data?.product;
     if (!product) return { title: 'Product Not Found' };
 
+    const realPath = getRealPath(product, baseUrl);
     const firstImg = product.variants?.[0]?.images?.[0]?.url || `${baseUrl}/og-default.jpg`;
     
     const title = product.seoTitle || `${product.name} | LINJIN LUXURY`;
@@ -112,11 +124,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return {
       title,
       description: seoDescription,
-      alternates: { canonical: `${baseUrl}/product/${slug}` },
+      // ✅ Canonical 指向真实层级路径
+      alternates: { canonical: realPath },
       openGraph: {
         title,
         description: seoDescription,
-        url: `${baseUrl}/product/${slug}`,
+        url: realPath, // ✅ OG URL 指向真实路径
         images: [{ url: firstImg, width: 1200, height: 630, alt: product.name }],
         type: 'website', 
       },
@@ -140,6 +153,7 @@ export default async function ProductPage({ params }: Props) {
     if (!productData?.product) return notFound();
 
     const product = productData.product;
+    const realPath = getRealPath(product, baseUrl);
     
     const recData: any = await hygraph.request(GET_RECOMMENDED_PRODUCTS, { 
       currentId: product.id,
@@ -153,15 +167,15 @@ export default async function ProductPage({ params }: Props) {
 
     const variants = product.variants || [];
     const firstVariantImages = variants[0]?.images || [];
-
-    // ✅ Fix 3: Image 空数组兜底
     const validImages = firstVariantImages.length > 0 
       ? firstVariantImages.map((img: any) => img.url)
       : [`${baseUrl}/og-default.jpg`];
 
+    // ✅ 修复修复：在这里显式提取 materialsCare.html，解决 [object Object] 问题
     const safeProduct = {
       ...product,
       description: product.description?.html || '',
+      materialsCare: product.materialsCare?.html || '', // 提取 HTML 字符串
       plainDescription: jsonDescription,
       colors: variants.map((v: any) => ({
         id: v.id,
@@ -176,16 +190,14 @@ export default async function ProductPage({ params }: Props) {
       images: p.variants?.[0]?.images || []
     })) || [];
 
-    // ✅ Fix 6: 动态生成 priceValidUntil (当前时间往后加 1 年，免维护)
     const nextYear = new Date();
     nextYear.setFullYear(nextYear.getFullYear() + 1);
     const validUntil = nextYear.toISOString().split('T')[0];
 
-    // 🚀 结构化数据终极版 (@graph 强化实体)
+    // 🚀 结构化数据 (全面指向 Real Path)
     const jsonLd = {
       "@context": "https://schema.org",
       "@graph": [
-        // ✅ Fix 5: 加入 Organization 强化品牌权威
         {
           "@type": "Organization",
           "@id": `${baseUrl}/#organization`,
@@ -195,42 +207,40 @@ export default async function ProductPage({ params }: Props) {
         },
         {
           "@type": "Product",
-          "@id": `${baseUrl}/product/${product.slug}#product`,
+          "@id": `${realPath}#product`, // 使用真实路径作为 ID
           "name": product.name,
           "description": jsonDescription,
-          "image": validImages, // ✅ Fix 3 应用
+          "image": validImages,
           "sku": product.id,
           "mpn": product.id,
-          "brand": { "@id": `${baseUrl}/#organization` }, // 关联上方 Organization
+          "brand": { "@id": `${baseUrl}/#organization` },
           "material": product.material || "Full-grain Leather",
           "color": product.variants?.[0]?.productColorEnum || "Black",
           "category": product.category?.name,
-          // ✅ Fix 4: 改用 isSimilarTo
+          "url": realPath, // ✅ 指向真实路径
           ...(recommendedProducts.length > 0 && {
             "isSimilarTo": recommendedProducts.map((p: any) => ({
               "@type": "Product",
               "name": p.name,
-              "url": `${baseUrl}/product/${p.slug}`
+              "url": `${baseUrl}/product/${p.slug}` 
             }))
           }),
           "offers": {
             "@type": "Offer",
             "priceCurrency": "USD",
-            "price": product.price.toString(), // ✅ Fix 2: 转 string
-            "priceValidUntil": validUntil, // ✅ Fix 6 应用
+            "price": product.price.toString(),
+            "priceValidUntil": validUntil,
             "itemCondition": "https://schema.org/NewCondition",
             "availability": product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-            "url": `${baseUrl}/product/${product.slug}`,
+            "url": realPath, // ✅ 指向真实路径
             "shippingDetails": {
               "@type": "OfferShippingDetails",
               "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "USD" },
               "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "US" },
-              // ✅ Fix 7: 加入 shippingOrigin (提醒：确保这与你后台真实的仓储/发货地匹配)
-              "shippingOrigin": { "@type": "DefinedRegion", "addressCountry": "US" },
               "deliveryTime": {
                 "@type": "ShippingDeliveryTime",
                 "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 1, "unitCode": "d" },
-                "transitTime": { "@type": "QuantitativeValue", "minValue": 3, "maxValue": 7, "unitCode": "d" }
+                "transitTime": { "@type": "QuantitativeValue", "minValue": 3, "maxValue": 10, "unitCode": "d" }
               }
             }
           }
@@ -243,7 +253,6 @@ export default async function ProductPage({ params }: Props) {
               "@type": "ListItem", 
               "position": 2, 
               "name": product.gender?.name || "Shop", 
-              // ✅ Fix 8: 真实路径结构映射
               "item": `${baseUrl}/${product.gender?.slug || 'shop'}` 
             },
             { 
@@ -256,7 +265,7 @@ export default async function ProductPage({ params }: Props) {
               "@type": "ListItem", 
               "position": 4, 
               "name": product.name, 
-              "item": `${baseUrl}/product/${product.slug}` 
+              "item": realPath 
             }
           ]
         }

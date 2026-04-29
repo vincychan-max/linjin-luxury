@@ -1,13 +1,11 @@
 import { MetadataRoute } from 'next';
 
-// 1. 定义数据结构
 interface HygraphProduct {
   slug: string;
   updatedAt: string;
-  isLimited: boolean; // 🌟 新增：判断是否为限量版
+  isLimited: boolean;
   gender?: { slug: string } | null;
   category?: { slug: string } | null;
-  subCategories?: Array<{ slug: string }> | null;
 }
 
 interface HygraphJournal {
@@ -15,25 +13,29 @@ interface HygraphJournal {
   updatedAt: string;
 }
 
-// 2. 抓取函数：产品 (增加了 isLimited 字段)
-async function getHygraphProducts(): Promise<HygraphProduct[]> {
+/** * 1. 递归分页抓取所有产品 
+ * 解决 100 条限制问题，确保 Men/Women 所有产品都被索引
+ */
+async function getAllHygraphProducts(skip = 0, allProducts: HygraphProduct[] = []): Promise<HygraphProduct[]> {
   const endpoint = process.env.NEXT_PUBLIC_HYGRAPH_ENDPOINT;
   const token = process.env.HYGRAPH_TOKEN;
-
-  if (!endpoint) {
-    console.error("Sitemap: NEXT_PUBLIC_HYGRAPH_ENDPOINT is undefined");
-    return [];
-  }
+  if (!endpoint) return allProducts;
 
   const query = `
-    query GetProductsForSitemap {
-      products(first: 100) {
-        slug
-        updatedAt
-        isLimited
-        gender { slug }
-        category { slug }
-        subCategories(first: 1) { slug }
+    query GetProductsForSitemap($skip: Int!) {
+      productsConnection(first: 100, skip: $skip, stage: PUBLISHED) {
+        edges {
+          node {
+            slug
+            updatedAt
+            isLimited
+            gender { slug }
+            category { slug }
+          }
+        }
+        pageInfo {
+          hasNextPage
+        }
       }
     }
   `;
@@ -41,32 +43,40 @@ async function getHygraphProducts(): Promise<HygraphProduct[]> {
   try {
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
       },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ query, variables: { skip } }),
       next: { revalidate: 3600 },
     });
 
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
     const json = await response.json();
-    return json?.data?.products || [];
+    const fetched = json?.data?.productsConnection?.edges?.map((e: any) => e.node) || [];
+    const hasNextPage = json?.data?.productsConnection?.pageInfo?.hasNextPage || false;
+
+    const updatedList = [...allProducts, ...fetched];
+
+    return hasNextPage 
+      ? getAllHygraphProducts(skip + 100, updatedList) 
+      : updatedList;
   } catch (error) {
-    console.error('Sitemap Fetch Error (Products):', error);
-    return [];
+    console.error('🔥 Sitemap Products Pagination Error:', error);
+    return allProducts;
   }
 }
 
-// 3. 抓取函数：Journal 文章
+/** 2. 抓取 Journal 文章 */
 async function getHygraphJournals(): Promise<HygraphJournal[]> {
   const endpoint = process.env.NEXT_PUBLIC_HYGRAPH_ENDPOINT;
   const token = process.env.HYGRAPH_TOKEN;
-
   if (!endpoint) return [];
 
   const query = `
     query GetJournalsForSitemap {
-      journals(first: 50) {
+      journals(first: 100, stage: PUBLISHED) {
         slug
         updatedAt
       }
@@ -76,7 +86,7 @@ async function getHygraphJournals(): Promise<HygraphJournal[]> {
   try {
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
       },
@@ -84,77 +94,78 @@ async function getHygraphJournals(): Promise<HygraphJournal[]> {
       next: { revalidate: 3600 },
     });
 
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const json = await response.json();
     return json?.data?.journals || [];
   } catch (error) {
-    console.error('Sitemap Fetch Error (Journals):', error);
+    console.error('🔥 Sitemap Journals Error:', error);
     return [];
   }
 }
 
-// 4. 生成 Sitemap 主函数
+/** 3. 生成 Sitemap 主函数 */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.linjinluxury.com';
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || 'https://www.linjinluxury.com';
+  
+  // ✅ 解决问题：固定静态页面日期，避免无效的“假更新”信号
+  const STATIC_LAST_MOD = '2026-04-28T00:00:00.000Z';
 
-  // 并行获取动态数据
   const [products, journals] = await Promise.all([
-    getHygraphProducts(),
+    getAllHygraphProducts(),
     getHygraphJournals(),
   ]);
 
-  // A. 静态与分类页面
+  // A. 静态与核心分类页面
   const staticPages = [
     { path: '', priority: 1.0, freq: 'daily' as const },
-    { path: '/collection', priority: 0.9, freq: 'daily' as const },
-    { path: '/shop', priority: 0.9, freq: 'daily' as const },
-    
-    // 🌟 重点优化：Limited Archive 页面权重提升，更新频率设为每小时
-    { path: '/limited', priority: 1.0, freq: 'always' as const }, 
-
+    { path: '/limited', priority: 1.0, freq: 'always' as const },
+    { path: '/collection', priority: 0.95, freq: 'daily' as const },
     { path: '/women', priority: 0.9, freq: 'daily' as const },
     { path: '/men', priority: 0.9, freq: 'daily' as const },
-
-    // 品牌与内容
-    { path: '/world-of-ljl', priority: 0.8, freq: 'weekly' as const },
-    { path: '/journal', priority: 0.8, freq: 'daily' as const },
-    { path: '/bespoke', priority: 0.9, freq: 'monthly' as const },
-    { path: '/about', priority: 0.8, freq: 'monthly' as const },
-    { path: '/care', priority: 0.7, freq: 'monthly' as const },
-    { path: '/contact', priority: 0.9, freq: 'monthly' as const }, // 转化点，权重提高
-    { path: '/faq', priority: 0.6, freq: 'monthly' as const },
-
-    // 政策与法律页面
-    { path: '/policies/privacy', priority: 0.3, freq: 'monthly' as const },
-    { path: '/policies/returns', priority: 0.3, freq: 'monthly' as const },
-    { path: '/terms', priority: 0.3, freq: 'monthly' as const },
-    { path: '/shipping', priority: 0.3, freq: 'monthly' as const },
-    { path: '/sustainability', priority: 0.7, freq: 'monthly' as const },
+    { path: '/journal', priority: 0.8, freq: 'weekly' as const },
+    { path: '/bespoke', priority: 0.85, freq: 'monthly' as const },
+    { path: '/about', priority: 0.6, freq: 'monthly' as const },
+    { path: '/contact', priority: 0.7, freq: 'monthly' as const },
   ];
 
   const staticEntries = staticPages.map((page) => ({
     url: `${baseUrl}${page.path}`,
-    lastModified: new Date().toISOString(),
+    lastModified: STATIC_LAST_MOD,
     changeFrequency: page.freq,
     priority: page.priority,
   }));
 
-  // B. 处理产品详情页 (区分普通产品与限量版)
+  // B. 产品详情页：应用严密的路径校验逻辑
   const productEntries = products.map((product) => {
-    // 🌟 逻辑区分：如果是限量版，使用 /limited/[slug]，否则使用分类路径
-    const urlPath = product.isLimited 
-      ? `/limited/${product.slug}`
-      : `/${product.gender?.slug || 'all'}/${product.category?.slug || 'items'}/${product.subCategories?.[0]?.slug || 'general'}/${product.slug}`;
+    let urlPath: string;
+    let currentPriority = 0.85;
+
+    // 逻辑 1：优先检查是否为限量版
+    if (product.isLimited) {
+      urlPath = `/limited/${product.slug}`;
+      currentPriority = 0.95; // 限量版权重最高
+    } 
+    // 逻辑 2：数据完整，生成标准层级路径 /[gender]/[category]/[slug]
+    else if (product.gender?.slug && product.category?.slug) {
+      urlPath = `/${product.gender.slug}/${product.category.slug}/${product.slug}`;
+      currentPriority = 0.85;
+    } 
+    // 逻辑 3：安全降级策略（数据缺失时）
+    else {
+      // 避免错误的 SEO 归类，不强行填入 'women'，而是指向通用的 /product/
+      urlPath = `/product/${product.slug}`; 
+      currentPriority = 0.7; // 降级路径权重降低
+    }
 
     return {
       url: `${baseUrl}${urlPath}`,
       lastModified: new Date(product.updatedAt).toISOString(),
       changeFrequency: 'daily' as const,
-      // 限量版给予更高的搜索权重
-      priority: product.isLimited ? 0.9 : 0.8, 
+      priority: currentPriority,
     };
   });
 
-  // C. 处理 Journal 文章详情页
+  // C. Journal 文章详情页
   const journalEntries = journals.map((post) => ({
     url: `${baseUrl}/journal/${post.slug}`,
     lastModified: new Date(post.updatedAt).toISOString(),

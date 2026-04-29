@@ -9,45 +9,46 @@ export const metadata: Metadata = {
 export default function HTMLSitemap() {
   const sitemapData = [
     {
-      category: "The Collections",
+      category: "Women's Universe", // 明确性别分类
       links: [
-        { name: "All Collections", href: "/collection" },
-        { name: "Shoulder Bags", href: "/collection/shoulder-bags" },
-        { name: "Tote Bags", href: "/collection/tote-bags" },
-        { name: "Clutch Bags", href: "/collection/clutch-bags" },
-        { name: "Crossbody Bags", href: "/collection/crossbody-bags" },
+        { name: "All Women's Bags", href: "/women" },
+        { name: "Shoulder Bags", href: "/women/shoulder-bags" },
+        { name: "Tote Bags", href: "/women/tote-bags" },
+        { name: "Crossbody Bags", href: "/women/crossbody-bags" },
         { name: "Limited Edition", href: "/limited" },
+      ]
+    },
+    {
+      category: "Men's Universe", // 新增：男士频道入口
+      links: [
+        { name: "All Men's Bags", href: "/men" },
+        { name: "Briefcases", href: "/men/briefcases" },
+        { name: "Backpacks", href: "/men/backpacks" },
+        { name: "Small Leather Goods", href: "/men/wallets" },
+        { name: "Bespoke Men's Service", href: "/bespoke" },
       ]
     },
     {
       category: "The House",
       links: [
-        { name: "The World of LJL", href: "/world-of-ljl" }, // 品牌愿景与 M2C 叙事
-        { name: "Our Workshop", href: "/about" },           // 工艺细节与团队介绍
+        { name: "The World of LJL", href: "/world-of-ljl" },
+        { name: "Our Workshop", href: "/about" }, 
         { name: "The Journal", href: "/journal" },
-        { name: "Bespoke Service", href: "/bespoke" },
         { name: "Sustainability", href: "/sustainability" },
+        { name: "Authenticity & Craft", href: "/verify" },
       ]
     },
     {
       category: "Client Service",
       links: [
         { name: "Contact Concierge", href: "/contact" },
-        { name: "Shipping & Returns", href: "/policies/returns" },
-        { name: "Product Care Guide", href: "/policies/care" },
-        { name: "Authenticity", href: "/verify" },
+        { name: "Shipping & Delivery", href: "/shipping" }, // 路径对齐
+        { name: "Returns & Exchanges", href: "/policies/returns" },
+        { name: "Product Care Guide", href: "/care" }, // 路径对齐
         { name: "Privacy Policy", href: "/policies/privacy" },
+        { name: "Terms of Service", href: "/terms" }, // 新增法律条款
       ]
     },
-    {
-     category: "My LJL",
-      links: [
-        { name: "Member Login", href: "/auth/login" },
-        { name: "VIP Services", href: "/account" },
-        { name: "Order History", href: "/my-orders" },
-        { name: "Wishlist", href: "/wishlist" },
-      ]
-    }
   ];
 
   return (
@@ -89,7 +90,7 @@ export default function HTMLSitemap() {
         {/* 底部装饰 */}
         <div className="mt-40 pt-10 border-t border-stone-100 text-center">
           <p className="text-[10px] uppercase tracking-[0.4em] text-stone-300">
-            Linjin Luxury &copy; 2026 Crafted Excellence
+            Linjin Luxury &copy; 2026 Crafted Excellence in Guangzhou
           </p>
         </div>
       </div>
