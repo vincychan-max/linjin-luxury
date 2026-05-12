@@ -4,7 +4,6 @@ interface HygraphProduct {
   slug: string;
   updatedAt: string;
   isLimited: boolean;
-  // 删除了 gender 和 category，因为现有的前端路由不需要它们
 }
 
 interface HygraphJournal {
@@ -21,7 +20,7 @@ async function getAllHygraphProducts(): Promise<HygraphProduct[]> {
   const token = process.env.HYGRAPH_TOKEN;
   if (!endpoint) return [];
 
-  let allProducts: HygraphProduct[] = [];
+  const allProducts: HygraphProduct[] = []; // ✅ 已修复：使用 const 解决 ESLint 报错
   let skip = 0;
   let hasNextPage = true;
 
@@ -64,7 +63,7 @@ async function getAllHygraphProducts(): Promise<HygraphProduct[]> {
       hasNextPage = json?.data?.productsConnection?.pageInfo?.hasNextPage || false;
       skip += 100;
 
-      // 安全锁：防止万一出现死循环，最多抓取 5000 个产品
+      // 安全锁：防止出现死循环，最多抓取 5000 个产品
       if (skip > 5000) break;
     }
 
@@ -154,7 +153,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // B. 产品详情页：完全匹配现有的文件路由体系
   const productEntries = products.map((product) => {
-    // 逻辑极为简单清晰：限量走 /limited，否则一律走 /product
     const isLimited = product.isLimited;
     const urlPath = isLimited ? `/limited/${product.slug}` : `/product/${product.slug}`;
     const priority = isLimited ? 0.95 : 0.85;
@@ -175,7 +173,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
-  // 合并数组，并使用 Map 进行一次 URL 去重，防止 Hygraph 返回重复数据导致 Google 报错
+  // 合并数组，并使用 Map 进行一次 URL 去重
   const allEntries = [...staticEntries, ...productEntries, ...journalEntries];
   const uniqueEntries = Array.from(new Map(allEntries.map(item => [item.url, item])).values());
 
