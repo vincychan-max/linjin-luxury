@@ -4,8 +4,7 @@ interface HygraphProduct {
   slug: string;
   updatedAt: string;
   isLimited: boolean;
-  gender?: { slug: string } | null;
-  category?: { slug: string } | null;
+  // 删除了 gender 和 category，因为现有的前端路由不需要它们
 }
 
 interface HygraphJournal {
@@ -13,13 +12,18 @@ interface HygraphJournal {
   updatedAt: string;
 }
 
-/** * 1. 递归分页抓取所有产品 
- * 解决 100 条限制问题，确保 Men/Women 所有产品都被索引
+/** 
+ * 1. 更加健壮的分页抓取产品逻辑 (使用 while 循环替代递归)
+ * 解决 100 条限制问题，并防止 API 异常导致死循环
  */
-async function getAllHygraphProducts(skip = 0, allProducts: HygraphProduct[] = []): Promise<HygraphProduct[]> {
+async function getAllHygraphProducts(): Promise<HygraphProduct[]> {
   const endpoint = process.env.NEXT_PUBLIC_HYGRAPH_ENDPOINT;
   const token = process.env.HYGRAPH_TOKEN;
-  if (!endpoint) return allProducts;
+  if (!endpoint) return [];
+
+  let allProducts: HygraphProduct[] = [];
+  let skip = 0;
+  let hasNextPage = true;
 
   const query = `
     query GetProductsForSitemap($skip: Int!) {
@@ -29,8 +33,6 @@ async function getAllHygraphProducts(skip = 0, allProducts: HygraphProduct[] = [
             slug
             updatedAt
             isLimited
-            gender { slug }
-            category { slug }
           }
         }
         pageInfo {
@@ -41,30 +43,35 @@ async function getAllHygraphProducts(skip = 0, allProducts: HygraphProduct[] = [
   `;
 
   try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: JSON.stringify({ query, variables: { skip } }),
-      next: { revalidate: 3600 },
-    });
+    while (hasNextPage) {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        body: JSON.stringify({ query, variables: { skip } }),
+        next: { revalidate: 3600 },
+      });
 
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-    const json = await response.json();
-    const fetched = json?.data?.productsConnection?.edges?.map((e: any) => e.node) || [];
-    const hasNextPage = json?.data?.productsConnection?.pageInfo?.hasNextPage || false;
+      const json = await response.json();
+      const fetched = json?.data?.productsConnection?.edges?.map((e: any) => e.node) || [];
+      
+      allProducts.push(...fetched);
 
-    const updatedList = [...allProducts, ...fetched];
+      hasNextPage = json?.data?.productsConnection?.pageInfo?.hasNextPage || false;
+      skip += 100;
 
-    return hasNextPage 
-      ? getAllHygraphProducts(skip + 100, updatedList) 
-      : updatedList;
+      // 安全锁：防止万一出现死循环，最多抓取 5000 个产品
+      if (skip > 5000) break;
+    }
+
+    return allProducts;
   } catch (error) {
     console.error('🔥 Sitemap Products Pagination Error:', error);
-    return allProducts;
+    return allProducts; // 报错时返回已经抓取到的部分
   }
 }
 
@@ -103,11 +110,21 @@ async function getHygraphJournals(): Promise<HygraphJournal[]> {
   }
 }
 
+// 辅助函数：确保日期格式正确，防止 new Date() 崩溃导致整个 sitemap 失败
+function getSafeDate(dateStr: string): string {
+  try {
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+  } catch {
+    return new Date().toISOString();
+  }
+}
+
 /** 3. 生成 Sitemap 主函数 */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || 'https://www.linjinluxury.com';
   
-  // ✅ 解决问题：固定静态页面日期，避免无效的“假更新”信号
+  // ✅ 静态页面固定日期
   const STATIC_LAST_MOD = '2026-04-28T00:00:00.000Z';
 
   const [products, journals] = await Promise.all([
@@ -135,43 +152,32 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: page.priority,
   }));
 
-  // B. 产品详情页：应用严密的路径校验逻辑
+  // B. 产品详情页：完全匹配现有的文件路由体系
   const productEntries = products.map((product) => {
-    let urlPath: string;
-    let currentPriority = 0.85;
-
-    // 逻辑 1：优先检查是否为限量版
-    if (product.isLimited) {
-      urlPath = `/limited/${product.slug}`;
-      currentPriority = 0.95; // 限量版权重最高
-    } 
-    // 逻辑 2：数据完整，生成标准层级路径 /[gender]/[category]/[slug]
-    else if (product.gender?.slug && product.category?.slug) {
-      urlPath = `/${product.gender.slug}/${product.category.slug}/${product.slug}`;
-      currentPriority = 0.85;
-    } 
-    // 逻辑 3：安全降级策略（数据缺失时）
-    else {
-      // 避免错误的 SEO 归类，不强行填入 'women'，而是指向通用的 /product/
-      urlPath = `/product/${product.slug}`; 
-      currentPriority = 0.7; // 降级路径权重降低
-    }
+    // 逻辑极为简单清晰：限量走 /limited，否则一律走 /product
+    const isLimited = product.isLimited;
+    const urlPath = isLimited ? `/limited/${product.slug}` : `/product/${product.slug}`;
+    const priority = isLimited ? 0.95 : 0.85;
 
     return {
       url: `${baseUrl}${urlPath}`,
-      lastModified: new Date(product.updatedAt).toISOString(),
+      lastModified: getSafeDate(product.updatedAt),
       changeFrequency: 'daily' as const,
-      priority: currentPriority,
+      priority: priority,
     };
   });
 
   // C. Journal 文章详情页
   const journalEntries = journals.map((post) => ({
     url: `${baseUrl}/journal/${post.slug}`,
-    lastModified: new Date(post.updatedAt).toISOString(),
+    lastModified: getSafeDate(post.updatedAt),
     changeFrequency: 'weekly' as const,
     priority: 0.7,
   }));
 
-  return [...staticEntries, ...productEntries, ...journalEntries];
+  // 合并数组，并使用 Map 进行一次 URL 去重，防止 Hygraph 返回重复数据导致 Google 报错
+  const allEntries = [...staticEntries, ...productEntries, ...journalEntries];
+  const uniqueEntries = Array.from(new Map(allEntries.map(item => [item.url, item])).values());
+
+  return uniqueEntries;
 }
