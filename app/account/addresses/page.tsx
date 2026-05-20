@@ -186,13 +186,11 @@ export default function AddressBookPage() {
   };
 
   const handleSaveClick = async () => {
-    // 基础必填校验
     if (!form.name.trim() || !form.phone.trim() || !form.street.trim() || !form.city.trim() || !form.zip.trim()) {
       toast.error('Please fill all required fields');
       return;
     }
 
-    // 电话格式简单校验 (允许数字、加号、中横线，长度 6-20)
     const phoneRegex = /^[0-9+\-\s()]{6,20}$/;
     if (!phoneRegex.test(form.phone)) {
       toast.error('Please enter a valid phone number');
@@ -238,20 +236,6 @@ export default function AddressBookPage() {
     setShowValidationModal(false);
   };
 
-  const handleApplySuggestion = (suggested: any) => {
-    // 使用 prev 确保不覆盖 name 和 phone
-    setForm(prev => ({
-      ...prev,
-      street: suggested.addressLines?.[0] || prev.street,
-      city: suggested.locality || prev.city,
-      state: suggested.administrativeArea || prev.state,
-      zip: suggested.postalCode || prev.zip,
-    }));
-    setShowValidationModal(false);
-    setValidationResult(null);
-    toast.success('Applied suggested address');
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -273,7 +257,6 @@ export default function AddressBookPage() {
               </h2>
 
               <div className="grid gap-10">
-                {/* 姓名 & 电话 */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                   <div className="space-y-2">
                     <label className="text-[8px] uppercase tracking-[2px] text-zinc-400 font-bold ml-1">Full Name *</label>
@@ -296,7 +279,6 @@ export default function AddressBookPage() {
                   </div>
                 </div>
 
-                {/* 街道地址 */}
                 <div className="space-y-2">
                   <label className="text-[8px] uppercase tracking-[2px] text-zinc-400 font-bold ml-1">Street Address *</label>
                   <input
@@ -307,7 +289,6 @@ export default function AddressBookPage() {
                   />
                 </div>
 
-                {/* 城市 & 国家 */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                    <div className="space-y-2">
                     <label className="text-[8px] uppercase tracking-[2px] text-zinc-400 font-bold ml-1">City *</label>
@@ -337,7 +318,6 @@ export default function AddressBookPage() {
                   </div>
                 </div>
 
-                {/* 州/省 & 邮编 */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                   <div className="space-y-2">
                     <label className="text-[8px] uppercase tracking-[2px] text-zinc-400 font-bold ml-1">State / Region</label>
@@ -360,7 +340,6 @@ export default function AddressBookPage() {
                 </div>
               </div>
 
-              {/* 按钮组 */}
               <div className="flex flex-col md:flex-row gap-4 mt-16">
                 <button
                   onClick={handleSaveClick}
@@ -386,7 +365,6 @@ export default function AddressBookPage() {
             </button>
           )}
 
-          {/* 地址列表 */}
           <div className="grid gap-8">
             {addresses.map((addr) => (
               <div key={addr.id} className="bg-white p-8 md:p-10 rounded-[32px] border border-zinc-100 shadow-sm relative group hover:shadow-md transition">
@@ -419,7 +397,6 @@ export default function AddressBookPage() {
         </div>
       </div>
 
-      {/* ====================== 验证结果提示弹窗 ====================== */}
       {showValidationModal && validationResult && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-6">
           <div className="bg-white rounded-[40px] max-w-lg w-full p-10 shadow-2xl animate-in zoom-in-95 duration-300 border border-zinc-100">
