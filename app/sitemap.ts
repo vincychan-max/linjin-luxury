@@ -1,3 +1,4 @@
+// app/sitemap.ts
 import { MetadataRoute } from 'next';
 
 interface HygraphProduct {
@@ -11,105 +12,12 @@ interface HygraphJournal {
   updatedAt: string;
 }
 
-/** 
- * 1. 更加健壮的分页抓取产品逻辑 (使用 while 循环替代递归)
- * 解决 100 条限制问题，并防止 API 异常导致死循环
- */
-async function getAllHygraphProducts(): Promise<HygraphProduct[]> {
-  const endpoint = process.env.NEXT_PUBLIC_HYGRAPH_ENDPOINT;
-  const token = process.env.HYGRAPH_TOKEN;
-  if (!endpoint) return [];
-
-  const allProducts: HygraphProduct[] = []; // ✅ 已修复：使用 const 解决 ESLint 报错
-  let skip = 0;
-  let hasNextPage = true;
-
-  const query = `
-    query GetProductsForSitemap($skip: Int!) {
-      productsConnection(first: 100, skip: $skip, stage: PUBLISHED) {
-        edges {
-          node {
-            slug
-            updatedAt
-            isLimited
-          }
-        }
-        pageInfo {
-          hasNextPage
-        }
-      }
-    }
-  `;
-
-  try {
-    while (hasNextPage) {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
-        body: JSON.stringify({ query, variables: { skip } }),
-        next: { revalidate: 3600 },
-      });
-
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const json = await response.json();
-      const fetched = json?.data?.productsConnection?.edges?.map((e: any) => e.node) || [];
-      
-      allProducts.push(...fetched);
-
-      hasNextPage = json?.data?.productsConnection?.pageInfo?.hasNextPage || false;
-      skip += 100;
-
-      // 安全锁：防止出现死循环，最多抓取 5000 个产品
-      if (skip > 5000) break;
-    }
-
-    return allProducts;
-  } catch (error) {
-    console.error('🔥 Sitemap Products Pagination Error:', error);
-    return allProducts; // 报错时返回已经抓取到的部分
-  }
+interface HygraphFaq {
+  slug: string;
+  updatedAt: string;
 }
 
-/** 2. 抓取 Journal 文章 */
-async function getHygraphJournals(): Promise<HygraphJournal[]> {
-  const endpoint = process.env.NEXT_PUBLIC_HYGRAPH_ENDPOINT;
-  const token = process.env.HYGRAPH_TOKEN;
-  if (!endpoint) return [];
-
-  const query = `
-    query GetJournalsForSitemap {
-      journals(first: 100, stage: PUBLISHED) {
-        slug
-        updatedAt
-      }
-    }
-  `;
-
-  try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: JSON.stringify({ query }),
-      next: { revalidate: 3600 },
-    });
-
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const json = await response.json();
-    return json?.data?.journals || [];
-  } catch (error) {
-    console.error('🔥 Sitemap Journals Error:', error);
-    return [];
-  }
-}
-
-// 辅助函数：确保日期格式正确，防止 new Date() 崩溃导致整个 sitemap 失败
+/** 辅助函数：安全日期格式化 */
 function getSafeDate(dateStr: string): string {
   try {
     const d = new Date(dateStr);
@@ -119,28 +27,104 @@ function getSafeDate(dateStr: string): string {
   }
 }
 
-/** 3. 生成 Sitemap 主函数 */
+/** 通用 GraphQL 请求函数 */
+async function hygraphFetch(query: string, variables: any = {}) {
+  const endpoint = process.env.NEXT_PUBLIC_HYGRAPH_ENDPOINT;
+  const token = process.env.HYGRAPH_TOKEN;
+  if (!endpoint) return null;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+    body: JSON.stringify({ query, variables }),
+    next: { revalidate: 3600 },
+  });
+
+  if (!response.ok) throw new Error(`Hygraph HTTP Error: ${response.status}`);
+  return response.json();
+}
+
+/** 1. 抓取产品 (分页) */
+async function getAllHygraphProducts(): Promise<HygraphProduct[]> {
+  const allProducts: HygraphProduct[] = [];
+  let skip = 0;
+  let hasNextPage = true;
+
+  const query = `
+    query GetProductsForSitemap($skip: Int!) {
+      productsConnection(first: 100, skip: $skip, stage: PUBLISHED) {
+        edges { node { slug updatedAt isLimited } }
+        pageInfo { hasNextPage }
+      }
+    }
+  `;
+
+  try {
+    while (hasNextPage) {
+      const json = await hygraphFetch(query, { skip });
+      const fetched = json?.data?.productsConnection?.edges?.map((e: any) => e.node) || [];
+      allProducts.push(...fetched);
+      hasNextPage = json?.data?.productsConnection?.pageInfo?.hasNextPage || false;
+      skip += 100;
+      if (skip > 5000) break;
+    }
+    return allProducts;
+  } catch (error) {
+    console.error('🔥 Products Sitemap Error:', error);
+    return allProducts;
+  }
+}
+
+/** 2. 抓取 Journal 文章 */
+async function getHygraphJournals(): Promise<HygraphJournal[]> {
+  const query = `query GetJournalsForSitemap { journals(first: 200, stage: PUBLISHED) { slug updatedAt } }`;
+  try {
+    const json = await hygraphFetch(query);
+    return json?.data?.journals || [];
+  } catch (error) {
+    console.error('🔥 Journal Sitemap Error:', error);
+    return [];
+  }
+}
+
+/** 3. 抓取动态 FAQ 条目 */
+async function getHygraphFaqs(): Promise<HygraphFaq[]> {
+  const query = `query GetFaqsForSitemap { faqs(first: 200, stage: PUBLISHED) { slug updatedAt } }`;
+  try {
+    const json = await hygraphFetch(query);
+    return json?.data?.faqs || [];
+  } catch (error) {
+    console.error('🔥 FAQ Sitemap Error:', error);
+    return [];
+  }
+}
+
+/** 主函数：生成完整 Sitemap */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || 'https://www.linjinluxury.com';
-  
-  // ✅ 静态页面固定日期
-  const STATIC_LAST_MOD = '2026-04-28T00:00:00.000Z';
+  const STATIC_LAST_MOD = '2026-05-01T00:00:00.000Z';
 
-  const [products, journals] = await Promise.all([
+  // 同时并行请求三个数据源
+  const [products, journals, faqs] = await Promise.all([
     getAllHygraphProducts(),
     getHygraphJournals(),
+    getHygraphFaqs(),
   ]);
 
-  // A. 静态与核心分类页面
+  // A. 静态页面
   const staticPages = [
     { path: '', priority: 1.0, freq: 'daily' as const },
-    { path: '/limited', priority: 1.0, freq: 'always' as const },
+    { path: '/limited', priority: 1.0, freq: 'hourly' as const },
     { path: '/collection', priority: 0.95, freq: 'daily' as const },
     { path: '/women', priority: 0.9, freq: 'daily' as const },
     { path: '/men', priority: 0.9, freq: 'daily' as const },
-    { path: '/journal', priority: 0.8, freq: 'weekly' as const },
+    { path: '/journal', priority: 0.85, freq: 'weekly' as const },
     { path: '/bespoke', priority: 0.85, freq: 'monthly' as const },
-    { path: '/about', priority: 0.6, freq: 'monthly' as const },
+    { path: '/faq', priority: 0.8, freq: 'monthly' as const },
+    { path: '/about', priority: 0.65, freq: 'monthly' as const },
     { path: '/contact', priority: 0.7, freq: 'monthly' as const },
   ];
 
@@ -151,31 +135,31 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: page.priority,
   }));
 
-  // B. 产品详情页：完全匹配现有的文件路由体系
-  const productEntries = products.map((product) => {
-    const isLimited = product.isLimited;
-    const urlPath = isLimited ? `/limited/${product.slug}` : `/product/${product.slug}`;
-    const priority = isLimited ? 0.95 : 0.85;
-
-    return {
-      url: `${baseUrl}${urlPath}`,
-      lastModified: getSafeDate(product.updatedAt),
-      changeFrequency: 'daily' as const,
-      priority: priority,
-    };
-  });
-
-  // C. Journal 文章详情页
-  const journalEntries = journals.map((post) => ({
-    url: `${baseUrl}/journal/${post.slug}`,
-    lastModified: getSafeDate(post.updatedAt),
-    changeFrequency: 'weekly' as const,
-    priority: 0.7,
+  // B. 产品详情页
+  const productEntries = products.map((p) => ({
+    url: `${baseUrl}${p.isLimited ? '/limited/' : '/product/'}${p.slug}`,
+    lastModified: getSafeDate(p.updatedAt),
+    changeFrequency: 'daily' as const,
+    priority: p.isLimited ? 0.95 : 0.85,
   }));
 
-  // 合并数组，并使用 Map 进行一次 URL 去重
-  const allEntries = [...staticEntries, ...productEntries, ...journalEntries];
-  const uniqueEntries = Array.from(new Map(allEntries.map(item => [item.url, item])).values());
+  // C. Journal 文章详情页
+  const journalEntries = journals.map((p) => ({
+    url: `${baseUrl}/journal/${p.slug}`,
+    lastModified: getSafeDate(p.updatedAt),
+    changeFrequency: 'weekly' as const,
+    priority: 0.75,
+  }));
 
-  return uniqueEntries;
+  // D. 动态 FAQ 详情页
+  const faqEntries = faqs.map((f) => ({
+    url: `${baseUrl}/faq/${f.slug}`,
+    lastModified: getSafeDate(f.updatedAt),
+    changeFrequency: 'monthly' as const,
+    priority: 0.65,
+  }));
+
+  // 合并所有数组，使用 Map 进行 URL 去重
+  const allEntries = [...staticEntries, ...productEntries, ...journalEntries, ...faqEntries];
+  return Array.from(new Map(allEntries.map((item) => [item.url, item])).values());
 }

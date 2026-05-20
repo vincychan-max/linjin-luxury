@@ -6,7 +6,7 @@ import { Metadata } from 'next';
 import Script from 'next/script';
 
 /**
- * 1. 类型定义 (Next.js 15 标准)
+ * 1. 类型定义
  */
 type Props = {
   params: Promise<{ slug: string }>;
@@ -24,17 +24,16 @@ const GET_PRODUCT_DEEP = gql`
       name
       slug
       price
-      seoTitle      
+      seoTitle        
       seoDescription 
       description { 
         html 
         text 
       }
-      dimensions
-      materialsCare { html } # 这里返回的是对象，需要提取 .html
+      size: dimensions
+      materialsCare { html }
       material
       altText
-      sizes
       stock
       category {
         name
@@ -78,20 +77,12 @@ const GET_RECOMMENDED_PRODUCTS = gql`
   }
 `;
 
-/**
- * 辅助函数：构造 SEO 理想路径 (Real Path)
- */
 function getRealPath(product: any, baseUrl: string) {
   const gender = product.gender?.slug || 'shop';
   const category = product.category?.slug || 'all';
-  // 构造真实路径：/[gender]/[category]/[slug]
   return `${baseUrl}/${gender}/${category}/${product.slug}`;
 }
 
-/**
- * 3. 静态路径生成 (SSG)
- * 因为文件在 app/product/[slug]，所以这里只需返回 slug
- */
 export async function generateStaticParams() {
   const GET_ALL_SLUGS = gql` query { products(stage: PUBLISHED) { slug } } `;
   try {
@@ -101,7 +92,7 @@ export async function generateStaticParams() {
 }
 
 /**
- * 4. 动态 Metadata (应用层级化 Canonical 策略)
+ * 3. 增强后的 Metadata 配置
  */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
@@ -110,7 +101,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   try {
     const data: any = await hygraph.request(GET_PRODUCT_DEEP, { slug });
     const product = data?.product;
-    if (!product) return { title: 'Product Not Found' };
+    if (!product) return { title: 'Product Not Found | LINJIN LUXURY' };
 
     const realPath = getRealPath(product, baseUrl);
     const firstImg = product.variants?.[0]?.images?.[0]?.url || `${baseUrl}/og-default.jpg`;
@@ -124,14 +115,27 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return {
       title,
       description: seoDescription,
-      // ✅ Canonical 指向真实层级路径
+      keywords: [product.name, 'LINJIN LUXURY', product.category?.name || '', 'Luxury Fashion'].filter(Boolean),
+      authors: [{ name: 'LINJIN LUXURY' }],
       alternates: { canonical: realPath },
+      robots: {
+        index: true,
+        follow: true,
+        googleBot: { index: true, follow: true, 'max-image-preview': 'large' },
+      },
       openGraph: {
         title,
         description: seoDescription,
-        url: realPath, // ✅ OG URL 指向真实路径
+        url: realPath,
+        siteName: 'LINJIN LUXURY',
         images: [{ url: firstImg, width: 1200, height: 630, alt: product.name }],
         type: 'website', 
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title,
+        description: seoDescription,
+        images: [firstImg],
       },
       other: {
         'product:price:amount': product.price.toString(),
@@ -142,7 +146,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 /**
- * 5. 主页面组件
+ * 4. 页面主体渲染
  */
 export default async function ProductPage({ params }: Props) {
   const { slug } = await params;
@@ -171,12 +175,12 @@ export default async function ProductPage({ params }: Props) {
       ? firstVariantImages.map((img: any) => img.url)
       : [`${baseUrl}/og-default.jpg`];
 
-    // ✅ 修复修复：在这里显式提取 materialsCare.html，解决 [object Object] 问题
     const safeProduct = {
       ...product,
       description: product.description?.html || '',
-      materialsCare: product.materialsCare?.html || '', // 提取 HTML 字符串
+      materialsCare: product.materialsCare?.html || '', 
       plainDescription: jsonDescription,
+      size: product.size, 
       colors: variants.map((v: any) => ({
         id: v.id,
         name: v.productColorEnum || 'Classic',
@@ -194,7 +198,7 @@ export default async function ProductPage({ params }: Props) {
     nextYear.setFullYear(nextYear.getFullYear() + 1);
     const validUntil = nextYear.toISOString().split('T')[0];
 
-    // 🚀 结构化数据 (全面指向 Real Path)
+    // JSON-LD 数据结构 (SEO 核心)
     const jsonLd = {
       "@context": "https://schema.org",
       "@graph": [
@@ -207,17 +211,20 @@ export default async function ProductPage({ params }: Props) {
         },
         {
           "@type": "Product",
-          "@id": `${realPath}#product`, // 使用真实路径作为 ID
+          "@id": `${realPath}#product`,
           "name": product.name,
           "description": jsonDescription,
           "image": validImages,
           "sku": product.id,
           "mpn": product.id,
-          "brand": { "@id": `${baseUrl}/#organization` },
+          "brand": {
+            "@type": "Brand",
+            "name": "LINJIN LUXURY"
+          },
           "material": product.material || "Full-grain Leather",
           "color": product.variants?.[0]?.productColorEnum || "Black",
           "category": product.category?.name,
-          "url": realPath, // ✅ 指向真实路径
+          "url": realPath,
           ...(recommendedProducts.length > 0 && {
             "isSimilarTo": recommendedProducts.map((p: any) => ({
               "@type": "Product",
@@ -232,7 +239,7 @@ export default async function ProductPage({ params }: Props) {
             "priceValidUntil": validUntil,
             "itemCondition": "https://schema.org/NewCondition",
             "availability": product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-            "url": realPath, // ✅ 指向真实路径
+            "url": realPath,
             "shippingDetails": {
               "@type": "OfferShippingDetails",
               "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "USD" },

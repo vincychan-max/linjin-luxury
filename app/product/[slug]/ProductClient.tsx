@@ -6,7 +6,8 @@ import { supabase } from '@/lib/supabase';
 import { Truck, Phone, Plus, ShieldCheck } from 'lucide-react'; 
 import { toast } from 'sonner'; 
 import { useRouter } from 'next/navigation';
-import Link from 'next/link'; // ✅ 新增：引入 Next.js 路由跳转组件
+import Link from 'next/link';
+import { User } from '@supabase/supabase-js';
 
 import { useWishlistStore } from '@/lib/store/useWishlistStore';
 
@@ -16,66 +17,113 @@ import ProductActions from './components/ProductActions';
 import { ContactModals } from './components/ContactModals';
 import { Recommendations } from './components/Recommendations'; 
 
-interface ProductClientProps {
-  product: any;
-  recommendedProducts?: any[]; 
+// ==========================================
+// 商业级类型定义
+// ==========================================
+
+export interface ProductImage {
+  url: string;
 }
+
+export interface ProductColor {
+  id: string;
+  name: string;
+  images: ProductImage[];
+}
+
+export interface ProductCategory {
+  name: string;
+  slug: string;
+}
+
+export interface ProductGender {
+  name: string;
+  slug: string;
+}
+
+export interface Product {
+  id: string;
+  name: string;
+  price: number;
+  description: string | { html: string };
+  material?: string;
+  size?: string;
+  stock: number;
+  colors: ProductColor[];
+  gender?: ProductGender;
+  category?: ProductCategory;
+  materialsCare?: string;
+  altText?: string;
+  images?: ProductImage[];
+}
+
+export interface CartItem {
+  product_id: string;
+  name: string;
+  price: number;
+  image: string;
+  color: string;
+  size: string;
+  quantity: number;
+}
+
+interface ProductClientProps {
+  product: Product;
+  recommendedProducts?: Product[]; 
+}
+
+// ==========================================
+// 组件主体
+// ==========================================
 
 export default function ProductClient({ product, recommendedProducts = [] }: ProductClientProps) {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   
-  // 1. 初始化选中的颜色和尺码
-  const [selectedColor, setSelectedColor] = useState(product?.colors?.[0]?.name || 'Default');
-  const [selectedSize, setSelectedSize] = useState(product?.sizes?.[0] || 'One Size');
-  const [isAdding, setIsAdding] = useState(false);
-  const [deliveryInfo, setDeliveryInfo] = useState('Global shipping'); 
+  // 1. 初始化状态
+  const [selectedColor, setSelectedColor] = useState<string>(product?.colors?.[0]?.name || 'Default');
+  const [selectedSize, setSelectedSize] = useState<string>(product?.size || 'One Size');
+  const [isAdding, setIsAdding] = useState<boolean>(false);
+  const [deliveryInfo, setDeliveryInfo] = useState<string>('Global shipping'); 
   
-  // 从 Store 获取状态
   const { wishlistIds, toggleWishlist, fetchWishlistIds } = useWishlistStore();
   
-  const [showContactModal, setShowContactModal] = useState(false);
-  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [showContactModal, setShowContactModal] = useState<boolean>(false);
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState<boolean>(false);
 
   const { addToCart, openCart } = useCart();
 
-  // 监听登录状态并同步收藏夹
+  // 监听登录状态
   useEffect(() => {
     const initData = async () => {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       setUser(authUser);
       if (authUser) {
-        await fetchWishlistIds(); // 只有登录后才拉取后端数据
+        await fetchWishlistIds();
       }
     };
     initData();
     setDeliveryInfo('Dispatched within 1-3 business days');
   }, [fetchWishlistIds]);
 
-  /**
-   * 🌟 定位当前变体 ID
-   */
+  // 🌟 逻辑计算
   const currentVariantId = useMemo(() => {
-    const colorObj = product?.colors?.find((c: any) => c.name === selectedColor);
+    const colorObj = product?.colors?.find((c) => c.name === selectedColor);
     return colorObj?.id || product?.id;
   }, [selectedColor, product]);
 
-  /**
-   * 🌟 收藏状态判断
-   */
+  // 性能优化：使用 Set 实现 O(1) 查找
   const isLiked = useMemo(() => {
-    return wishlistIds.includes(currentVariantId);
+    const wishlistSet = new Set(wishlistIds);
+    return wishlistSet.has(currentVariantId);
   }, [wishlistIds, currentVariantId]);
 
-  /**
-   * 🌟 动态图片逻辑
-   */
   const currentImages = useMemo(() => {
-    const currentColorObj = product?.colors?.find((c: any) => c.name === selectedColor);
+    const currentColorObj = product?.colors?.find((c) => c.name === selectedColor);
     const rawImages = (currentColorObj?.images && currentColorObj.images.length > 0) 
       ? currentColorObj.images : (product?.images || []);
 
-    return rawImages.map((img: any, index: number) => ({
+    return rawImages.map((img, index) => ({
       ...img,
       alt: product?.altText ? `${product.altText} - ${index + 1}` : `${product?.name} - ${index + 1}`
     }));
@@ -86,23 +134,23 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
     return typeof product.description === 'object' ? product.description.html : product.description;
   }, [product?.description]);
 
-  // 咨询处理
+  // 咨询逻辑
   const handleWhatsAppInquiry = useCallback(() => {
     const WHATSAPP_NUMBER = '17817026596'; 
-    const message = `Hello LINJIN LUXURY, I am interested in ${product.name}.\nColor: ${selectedColor}\nSize: ${selectedSize}\nLink: ${window.location.href}`;
+    const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
+    const message = `Hello LINJIN LUXURY, I am interested in ${product.name}.\nColor: ${selectedColor}\nSize: ${selectedSize}\nLink: ${currentUrl}`;
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, '_blank');
   }, [product.name, selectedColor, selectedSize]);
 
   const handleEmailInquiry = useCallback(() => {
     const recipient = "service@linjinluxury.com";
     const subject = `Inquiry: ${product.name}`;
-    const body = `Interested in:\nProduct: ${product.name}\nColor: ${selectedColor}\nSize: ${selectedSize}\n\nLink: ${window.location.href}`;
+    const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
+    const body = `Interested in:\nProduct: ${product.name}\nColor: ${selectedColor}\nSize: ${selectedSize}\n\nLink: ${currentUrl}`;
     window.location.href = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }, [product.name, selectedColor, selectedSize]);
 
-  /**
-   * 🌟 收藏切换逻辑
-   */
+  // 收藏逻辑
   const handleToggleFavorite = useCallback(async () => {
     if (!user) { 
       toast.error('Please sign in to save your favorites', {
@@ -121,21 +169,21 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
     }
   }, [user, isLiked, currentVariantId, toggleWishlist]);
 
-  /**
-   * ✅ 关键修复：移除手动定义的 id，完全符合 AddCartInput 类型
-   */
+  // 加购逻辑 - 修复后的类型兼容写法
   const handleAddToBag = useCallback(async () => {
     if (!product) return;
     setIsAdding(true);
     try {
-      const cartItem = {
+      const cartItem: CartItem = {
         product_id: product.id, 
         name: product.name, 
         price: product.price,
         image: currentImages[0]?.url || '', 
         color: selectedColor, 
         size: selectedSize,
+        quantity: 1
       };
+      // 此处直接传入 user?.id，符合 string | undefined 类型要求
       await addToCart(cartItem, user?.id);
       toast.success('Added to bag', {
         style: { fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase' }
@@ -148,19 +196,20 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
     }
   }, [product, selectedColor, selectedSize, currentImages, addToCart, user?.id, openCart]);
 
-  /**
-   * ✅ 关键修复：移除手动定义的 id
-   */
+  // 立即购买逻辑
   const handleBuyNow = useCallback(async () => {
     if (!product) return;
-    await addToCart({
+    const cartItem: CartItem = {
       product_id: product.id, 
       name: product.name, 
       price: product.price,
       image: currentImages[0]?.url || '', 
       color: selectedColor, 
-      size: selectedSize, 
-    }, user?.id);
+      size: selectedSize,
+      quantity: 1
+    };
+    // 此处直接传入 user?.id，符合 string | undefined 类型要求
+    await addToCart(cartItem, user?.id);
     router.push('/cart'); 
   }, [product, selectedColor, selectedSize, currentImages, addToCart, user?.id, router]);
 
@@ -177,27 +226,17 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
           
           <div className="w-full lg:w-[60%] flex flex-col">
             <div className="mb-10 space-y-2">
-              
-              {/* ✅ 新增：将面包屑导航放在标题上方 */}
               <nav aria-label="Breadcrumb" className="mb-3">
                 <ol className="flex flex-wrap items-center text-[10px] uppercase tracking-[0.15em] text-zinc-400">
-                  <li>
-                    <Link href="/" className="hover:text-black transition-colors">Home</Link>
-                  </li>
-                  
+                  <li><Link href="/" className="hover:text-black transition-colors">Home</Link></li>
                   {product.gender && (
                     <li className="flex items-center before:content-['/'] before:mx-2 before:text-zinc-200">
-                      <Link href={`/${product.gender.slug}`} className="hover:text-black transition-colors">
-                        {product.gender.name}
-                      </Link>
+                      <Link href={`/${product.gender.slug}`} className="hover:text-black transition-colors">{product.gender.name}</Link>
                     </li>
                   )}
-
                   {product.category && (
                     <li className="flex items-center before:content-['/'] before:mx-2 before:text-zinc-200">
-                      <Link href={`/${product.gender?.slug || 'shop'}/${product.category.slug}/all`} className="hover:text-black transition-colors">
-                        {product.category.name}
-                      </Link>
+                      <Link href={`/${product.gender?.slug || 'shop'}/${product.category.slug}/all`} className="hover:text-black transition-colors">{product.category.name}</Link>
                     </li>
                   )}
                 </ol>
@@ -238,7 +277,7 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
                   <Plus size={18} strokeWidth={1} className="group-open:rotate-45 transition-transform" />
                 </summary>
                 <div className="pb-6 text-[13px] font-light text-zinc-500 leading-relaxed max-w-2xl prose prose-zinc">
-                    <div dangerouslySetInnerHTML={{ __html: descriptionHtml }} />
+                  <div dangerouslySetInnerHTML={{ __html: descriptionHtml }} />
                 </div>
               </details>
 
@@ -249,7 +288,7 @@ export default function ProductClient({ product, recommendedProducts = [] }: Pro
                 </summary>
                 <div className="pb-6 text-sm font-light text-zinc-800 leading-relaxed">
                   {product.material && <p className="mb-2 italic">Material: {product.material}</p>}
-                  {product.dimensions && <p className="mb-4">Dimensions: {product.dimensions}</p>}
+                  {product.size && <p className="mb-4">Size: {product.size}</p>}
                 </div>
               </details>
 

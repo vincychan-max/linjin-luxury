@@ -5,43 +5,23 @@ import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import { User } from '@supabase/supabase-js';
 
 import { useSupabase } from '../components/providers/SupabaseProvider';
 import { useCart, CartItem } from '@/lib/cartStore';
 import { PayPalButtons } from '@paypal/react-paypal-js';
 
+// ==================== 引入 Zod 校验规则 ====================
+import { AddressSchema } from '@/lib/validations/address'; 
+
+// ==================== 引入单一事实来源 ====================
+import { calculateTotals } from '@/lib/pricing';
+import { COUNTRY_CODE_MAP } from '@/constants/shipping';
+
 interface ClientCartPageProps {
-  user?: any;
+  user?: User | null;
   initialCart?: CartItem[];
 }
-
-// ==================== 静态配置 ====================
-const COUNTRY_CODE_MAP: Record<string, string> = {
-  US: 'United States', CA: 'Canada', GB: 'United Kingdom', FR: 'France',
-  DE: 'Germany', IT: 'Italy', ES: 'Spain', JP: 'Japan', KR: 'South Korea',
-  AU: 'Australia', CN: 'China', SG: 'Singapore', HK: 'Hong Kong',
-  IN: 'India', ID: 'Indonesia', TH: 'Thailand', VN: 'Vietnam',
-  MY: 'Malaysia', PH: 'Philippines', BR: 'Brazil', AR: 'Argentina',
-  CL: 'Chile', CO: 'Colombia', PE: 'Peru', MX: 'Mexico',
-};
-
-const STATE_TAX_RATES: Record<string, number> = {
-  CA: 0.0875, NY: 0.08875, TX: 0.0825, FL: 0.07, IL: 0.0925,
-  PA: 0.06, OH: 0.0725, GA: 0.07, NC: 0.0675, NJ: 0.06625,
-};
-
-const SOUTH_AMERICA_TAX_RATES: Record<string, number> = {
-  'Brazil': 0.60, 'Argentina': 0.21, 'Chile': 0.19, 'Colombia': 0.19, 'Peru': 0.18,
-};
-
-const BASE_SHIPPING_RATES: Record<string, number> = {
-  'United States': 50, 'Canada': 50, 'United Kingdom': 50, 'France': 50,
-  'Germany': 50, 'Italy': 50, 'Spain': 50, 'Japan': 55, 'South Korea': 55,
-  'Australia': 55, 'China': 50, 'Singapore': 50, 'Hong Kong': 50,
-  'India': 50, 'Indonesia': 50, 'Thailand': 30, 'Vietnam': 30,
-  'Malaysia': 30, 'Philippines': 30, 'Brazil': 120, 'Argentina': 120,
-  'Chile': 100, 'Colombia': 100, 'Peru': 100,
-};
 
 export default function ClientCartPage({ 
   user: initialUser, 
@@ -65,9 +45,9 @@ export default function ClientCartPage({
     setServerCart,
   } = useCart();
 
-  // ====================== 地址状态 ======================
+  // ====================== 地址状态 (已修复默认值) ======================
   const [address, setAddress] = useState({
-    name: '', phone: '', street: '', city: '', state: '', zip: '', country: 'United States'
+    name: '', phone: '', street: '', city: '', state: '', zip: '', country: 'US'
   });
 
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
@@ -76,16 +56,15 @@ export default function ClientCartPage({
   const [isApproving, setIsApproving] = useState(false);
 
   const hasReconciled = useRef(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
-  // ====================== 最强 SSR 数据注入（解决跳没问题） ======================
+  // ====================== 最强 SSR 数据注入 ======================
   useEffect(() => {
     if (initialCart && initialCart.length > 0) {
-      // 强制设置 server 数据，并标记已 hydration
       setServerCart(initialCart);
     }
   }, [initialCart, setServerCart]);
 
-  // 防止 Zustand persist 覆盖 server 数据
   useEffect(() => {
     if (isHydrated && initialCart.length > 0 && cart.length === 0) {
       setServerCart(initialCart);
@@ -117,7 +96,7 @@ export default function ClientCartPage({
           city: addr.city || '',
           state: addr.state || '',
           zip: addr.zip || '',
-          country: addr.country || 'United States',
+          country: addr.country || 'US',
         });
         setIsAddressLocked(true);
       }
@@ -132,37 +111,25 @@ export default function ClientCartPage({
     }
   }, [isHydrated, user?.id, reconcileCartAndAddress]);
 
-  // ====================== 计算总额 ======================
+  // ====================== 计算总额 (单一事实来源) ======================
   const totals = useMemo(() => {
     const subtotal = getTotalPrice?.() ?? 0;
     const itemsCount = getTotalItems?.() ?? 0;
-
-    let shipping = 0;
-    if (itemsCount > 0) {
-      const baseRate = BASE_SHIPPING_RATES[address.country] ?? 60;
-      shipping = baseRate + (itemsCount - 1) * 20;
-    }
-
-    let taxRate = 0;
-    if (address.country === 'United States') {
-      taxRate = STATE_TAX_RATES[address.state] ?? 0.08;
-    } else {
-      taxRate = SOUTH_AMERICA_TAX_RATES[address.country] ?? 0;
-    }
-
-    const tax = subtotal * taxRate;
-    const total = subtotal + shipping + tax;
-
-    return { subtotal, shipping, tax, total };
+    
+    // 调用统一计算逻辑
+    return calculateTotals(subtotal, itemsCount, address.country, address.state);
   }, [cart, address.country, address.state, getTotalPrice, getTotalItems]);
 
   const formatPrice = (val: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
 
+  // ====================== 核心：Zod 地址校验 ======================
   const handleAddressConfirm = async () => {
-    const { name, phone, street, city, zip } = address;
-    if (!name || !phone || !street || !city || !zip) {
-      toast.error('Please complete all shipping details.');
+    const validation = AddressSchema.safeParse(address);
+    
+    if (!validation.success) {
+      const errorMessage = validation.error.errors[0].message;
+      toast.error(errorMessage);
       return;
     }
 
@@ -283,17 +250,17 @@ export default function ClientCartPage({
             )}
           </section>
 
-          {/* 地址表单（保持完整） */}
+          {/* 地址表单 */}
           <section className="bg-white border border-zinc-200 rounded-[40px] p-8 md:p-12">
             <h2 className="text-[11px] uppercase tracking-[6px] font-black mb-12 flex items-center gap-4">
               <span className="w-8 h-[1px] bg-black" /> Delivery Details
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8">
-              {/* 你的地址表单所有字段保持不变 */}
               <div className="md:col-span-2 flex flex-col gap-2">
                 <label className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold">Consignee Name</label>
                 <input
+                  ref={nameInputRef}
                   disabled={isAddressLocked}
                   value={address.name}
                   onChange={(e) => setAddress({ ...address, name: e.target.value })}
@@ -319,8 +286,8 @@ export default function ClientCartPage({
                   onChange={(e) => setAddress({ ...address, country: e.target.value })}
                   className="w-full border-b border-zinc-200 py-3 text-[13px] uppercase tracking-widest bg-transparent outline-none disabled:opacity-50"
                 >
-                  {Object.values(COUNTRY_CODE_MAP).map((c) => (
-                    <option key={c} value={c}>{c}</option>
+                  {Object.entries(COUNTRY_CODE_MAP).map(([code, name]) => (
+                    <option key={code} value={code}>{name}</option>
                   ))}
                 </select>
               </div>
@@ -382,8 +349,11 @@ export default function ClientCartPage({
                     <span className="text-[10px] uppercase tracking-widest font-black">Destination Confirmed</span>
                   </div>
                   <button
-                    onClick={() => setIsAddressLocked(false)}
-                    className="text-[10px] uppercase underline text-zinc-400 hover:text-white"
+                    onClick={() => {
+                      setIsAddressLocked(false);
+                      setTimeout(() => nameInputRef.current?.focus(), 100);
+                    }}
+                    className="text-[10px] uppercase underline text-zinc-400 hover:text-white transition"
                   >
                     Change
                   </button>
@@ -394,7 +364,14 @@ export default function ClientCartPage({
         </div>
 
         {/* 右侧总结 + PayPal */}
-        <div className="lg:col-span-5 xl:col-span-4">
+        <div className="relative lg:col-span-5 xl:col-span-4">
+          
+          {isApproving && (
+            <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-md rounded-[50px] flex items-center justify-center">
+              <p className="text-white tracking-[5px] uppercase text-[12px] animate-pulse font-bold">Processing...</p>
+            </div>
+          )}
+
           <div className="sticky top-32 bg-zinc-950 text-white rounded-[50px] p-10 md:p-14 shadow-2xl">
             <h2 className="text-[10px] uppercase tracking-[6px] font-bold mb-14 text-white/40 italic">Checkout Summary</h2>
 
@@ -430,7 +407,7 @@ export default function ClientCartPage({
                         body: JSON.stringify({
                           items: cart,
                           address,
-                          userId: user?.id || null,
+                          userId: user?.id,
                         }),
                       });
 

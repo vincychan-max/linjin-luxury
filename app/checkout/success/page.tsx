@@ -5,6 +5,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client'; 
+// 关键导入：引入我们在 lib/actions/checkout.ts 中定义的捕获扣款方法
+import { capturePayPalOrder } from '@/lib/actions/checkout'; 
 
 function OrderConfirmationContent() {
   const searchParams = useSearchParams();
@@ -21,13 +23,28 @@ function OrderConfirmationContent() {
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 
   useEffect(() => {
+    // 1. 核心改进：主动捕获 PayPal 支付
+    // 只要有 token，就尝试执行扣款，确保支付流程闭环
+    const performCapture = async () => {
+      if (paypalToken) {
+        try {
+          await capturePayPalOrder(paypalToken);
+        } catch (error) {
+          console.error("Capture action failed:", error);
+        }
+      }
+    };
+
+    performCapture();
+
+    // 2. 现有的订单轮询逻辑
     if (!orderId && !paypalToken) {
       setLoading(false);
       return;
     }
 
     let retryCount = 0;
-    const maxRetries = 6; // 总计约 15-20 秒的轮询时间
+    const maxRetries = 8; // 增加重试次数以覆盖延迟
     let interval: NodeJS.Timeout;
 
     const fetchOrder = async () => {
@@ -37,6 +54,7 @@ function OrderConfirmationContent() {
         if (orderId) {
           query = query.eq('id', orderId);
         } else if (paypalToken) {
+          // 如果是轮询，我们甚至可以查询状态，确保已变更为 paid
           query = query.or(`paypal_order_id.eq.${paypalToken},paypal_token.eq.${paypalToken}`);
         }
 
@@ -44,9 +62,14 @@ function OrderConfirmationContent() {
 
         if (data) {
           setOrder(data);
-          setLoading(false);
-          setIsPolling(false);
-          return true; // 成功找到订单
+          // 只要查到了订单，且状态为已支付，就停止 loading
+          if (data.status === 'paid') {
+             setLoading(false);
+             setIsPolling(false);
+             return true;
+          }
+          // 如果订单还在 pending，返回 false 继续轮询
+          return false; 
         }
         return false;
       } catch (error) {
@@ -55,10 +78,8 @@ function OrderConfirmationContent() {
     };
 
     const startPolling = async () => {
-      // 第一次尝试
       const found = await fetchOrder();
       
-      // 如果没找到，进入轮询模式
       if (!found) {
         setIsPolling(true);
         interval = setInterval(async () => {
@@ -70,7 +91,9 @@ function OrderConfirmationContent() {
             setLoading(false);
             setIsPolling(false);
           }
-        }, 3000); // 每 3 秒查询一次
+        }, 3000); 
+      } else {
+        setLoading(false);
       }
     };
 
@@ -88,7 +111,7 @@ function OrderConfirmationContent() {
         <div className="text-center">
           <div className="w-10 h-10 border-[1px] border-zinc-100 border-t-black rounded-full animate-spin mb-6 mx-auto" />
           <p className="text-[9px] uppercase tracking-[8px] text-zinc-400 pl-[8px]">
-            {isPolling ? "Synchronizing Order" : "Authenticating"}
+            {isPolling ? "Synchronizing Order" : "Authenticating Payment"}
           </p>
         </div>
       </div>
@@ -113,7 +136,7 @@ function OrderConfirmationContent() {
     );
   }
 
-  // 3. 正常显示确认详情 (生产级视图)
+  // 3. 正常显示确认详情
   return (
     <div className="min-h-screen bg-white pt-32 pb-20 px-6 md:px-12 lg:px-24">
       <div className="max-w-[1100px] mx-auto">
@@ -127,7 +150,7 @@ function OrderConfirmationContent() {
             Confirmed
           </h1>
           <p className="text-[10px] uppercase tracking-[4px] text-zinc-400">
-            Order: {order.id.toString().slice(-12).toUpperCase()}
+            Order: {order.id?.toString().slice(-12).toUpperCase()}
           </p>
           {order.status !== 'paid' && (
             <p className="text-[9px] text-amber-600 uppercase tracking-widest mt-2">Payment Verification Pending</p>

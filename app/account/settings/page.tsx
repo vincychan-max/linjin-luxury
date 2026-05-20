@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useSupabase } from '../../components/providers/SupabaseProvider';
+import { COUNTRY_OPTIONS } from '@/constants/shipping'; // 确保此路径正确
 
 export default function AccountSettingsPage() {
   const router = useRouter();
@@ -22,7 +23,7 @@ export default function AccountSettingsPage() {
     city: '',
     state: 'CA',
     zip: '',
-    country: 'United States'
+    country: 'US' // 初始化为 ISO 代码
   });
 
   // ==================== 初始化 ====================
@@ -60,8 +61,15 @@ export default function AccountSettingsPage() {
       .eq('id', userId)
       .single();
 
-    if (data) {
-      if (data.address) setAddress(data.address);
+    if (data && data.address) {
+      let loadedAddress = data.address;
+      
+      // 兼容旧数据：如果数据库存的是全称，自动转为 ISO 代码
+      if (loadedAddress.country === 'United States') {
+        loadedAddress.country = 'US';
+      }
+      
+      setAddress(loadedAddress);
       if (data.displayName) setDisplayName(data.displayName);
       if (data.photoURL) setPhotoURL(data.photoURL);
     }
@@ -88,12 +96,10 @@ export default function AccountSettingsPage() {
         .from('avatars')
         .getPublicUrl(fileName);
 
-      // 更新 Supabase Auth 用户资料
       await supabase.auth.updateUser({
         data: { avatar_url: publicUrl }
       });
 
-      // 更新 users 表
       await supabase
         .from('users')
         .upsert({
@@ -268,13 +274,21 @@ export default function AccountSettingsPage() {
                   className="border-b-2 border-gray-300 py-4 focus:border-black outline-none transition text-black placeholder:text-gray-500" 
                 />
               </div>
-              <input 
-                type="text" 
-                placeholder="Country" 
-                value={address.country} 
-                disabled 
-                className="w-full border-b-2 border-gray-300 py-4 text-black/60" 
-              />
+              {/* 这里改为下拉选择框 */}
+              <div className="w-full">
+                <label className="block text-sm opacity-60 mb-2">Country *</label>
+                <select
+                  value={address.country}
+                  onChange={(e) => setAddress({...address, country: e.target.value})}
+                  className="w-full border-b-2 border-gray-300 py-4 focus:border-black outline-none transition text-black bg-white"
+                >
+                  {COUNTRY_OPTIONS.map((option) => (
+                    <option key={option.code} value={option.code}>
+                      {option.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 

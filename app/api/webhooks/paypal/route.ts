@@ -1,14 +1,18 @@
-// app/api/webhooks/paypal/route.ts
 import { NextResponse } from 'next/server';
-import { fulfillPayPalOrder } from '@/lib/actions/checkout';
+import { createClient } from '@supabase/supabase-js';
+
+// 初始化管理员权限客户端 (必须使用 service_role key 以绕过 RLS 保证后台任务执行)
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 const PAYPAL_WEBHOOK_ID = process.env.PAYPAL_WEBHOOK_ID!;
-
 const baseUrl = process.env.NODE_ENV === 'production'
   ? 'https://api-m.paypal.com'
   : 'https://api-m.sandbox.paypal.com';
 
-// 简单 Token 缓存（生产建议换成 Redis）
+// 简单 Token 缓存（生产环境建议在后续优化中引入 Redis）
 let cachedToken: string | null = null;
 let tokenExpiry: number = 0;
 
@@ -28,13 +32,12 @@ async function getPayPalAccessToken(): Promise<string> {
     body: 'grant_type=client_credentials',
   });
 
-  if (!res.ok) {
-    throw new Error(`Failed to get PayPal token: ${res.status}`);
-  }
+  if (!res.ok) throw new Error(`Failed to get PayPal token: ${res.status}`);
 
   const { access_token, expires_in } = await res.json();
   cachedToken = access_token;
-  tokenExpiry = Date.now() + (expires_in - 120) * 1000; // 提前2分钟过期
+  // 提前 5 分钟刷新以防临界值误差
+  tokenExpiry = Date.now() + (expires_in - 300) * 1000;
 
   return access_token;
 }
@@ -70,55 +73,62 @@ async function verifyWebhookSignature(req: Request, rawBody: string): Promise<bo
 }
 
 export async function POST(req: Request) {
+  // 1. 安全配置检查
   if (!PAYPAL_WEBHOOK_ID) {
-    console.error('PAYPAL_WEBHOOK_ID not configured');
-    return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 });
+    console.error('PAYPAL_WEBHOOK_ID is not configured');
+    return NextResponse.json({ error: 'Config error' }, { status: 500 });
   }
 
-  // === 关键修复 1：只读取一次 body ===
+  // 2. 读取并解析 Body (确保获取 rawBody 用于签名校验)
   let rawBody: string;
   let event: any;
-
   try {
     rawBody = await req.text();
     event = JSON.parse(rawBody);
   } catch (err) {
-    console.error('Invalid webhook payload:', err);
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  // === 验证签名 ===
+  // 3. 签名验证 (阻断恶意请求)
   const isValid = await verifyWebhookSignature(req, rawBody);
   if (!isValid) {
-    console.error('❌ Webhook signature verification failed!');
+    console.error('❌ Webhook signature verification failed');
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
   }
 
-  console.log(`📨 PayPal Webhook: ${event.event_type} | ID: ${event.id}`);
+  // 4. 事件路由与处理
+  // 只处理我们关心的支付成功事件
+  if (event.event_type === 'PAYMENT.CAPTURE.COMPLETED' || event.event_type === 'CHECKOUT.ORDER.COMPLETED') {
+    
+    // 鲁棒的 Order ID 提取逻辑 (兼容 PayPal 不同格式)
+    const resource = event.resource;
+    const paypalOrderId = resource?.supplementary_data?.related_ids?.order_id || 
+                          resource?.order_id || 
+                          resource?.id || 
+                          '';
 
-  // === 关键修复 2：添加幂等性处理 ===
-  if (event.event_type === 'PAYMENT.CAPTURE.COMPLETED' || 
-      event.event_type === 'CHECKOUT.ORDER.COMPLETED') {
+    if (paypalOrderId) {
+      console.log(`📨 Processing Webhook: ${event.event_type} | Order: ${paypalOrderId}`);
 
-    const paypalOrderId = event.resource?.order_id || 
-                         event.resource?.id || 
-                         event.resource?.parent_payment || '';
+      // 调用原子 SQL RPC 处理业务逻辑
+      // 内部包含：行锁、状态机检查、幂等性记录
+      const { data, error } = await supabaseAdmin.rpc('process_paypal_webhook', {
+        p_paypal_order_id: paypalOrderId,
+        p_event_id: event.id,
+        p_event_type: event.event_type
+      });
 
-    if (!paypalOrderId) {
-      return NextResponse.json({ received: true });
-    }
+      if (error) {
+        console.error('Database RPC Error:', error);
+        // 如果数据库层报错，返回 500 让 PayPal 稍后重试
+        return NextResponse.json({ error: 'Database processing failed' }, { status: 500 });
+      }
 
-    // 使用 event.id 做幂等检查（推荐在 fulfillPayPalOrder 内部实现）
-    const result = await fulfillPayPalOrder(paypalOrderId, event.id);
-
-    if (result.success) {
-      console.log(`✅ Order fulfilled: ${paypalOrderId}`);
-    } else {
-      console.error(`⚠️ Fulfill failed for ${paypalOrderId}: ${result.message}`);
-      // 注意：即使 fulfill 失败，也要返回 200，否则 PayPal 会无限重试
+      console.log(`✅ Webhook Result: ${data.message}`);
     }
   }
 
-  // 必须返回 2xx，告诉 PayPal 已成功接收
-  return NextResponse.json({ received: true });
+  // 5. 始终返回 200 OK
+  // 必须返回 200，即使是“已处理”或“忽略”的事件，否则 PayPal 会因为收不到响应而持续重试
+  return NextResponse.json({ received: true }, { status: 200 });
 }

@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 
-// 1. 定义数据接口，确保类型安全
 interface FaqItem {
   question: string;
   answer: string;
@@ -18,59 +17,35 @@ interface FaqClientProps {
   faqData: FaqSection[];
 }
 
-// 品牌化关键词：Provenance (出处), Logistics (物流), Returns Policy (退换), Bespoke Inquiries (定制)
 const hotTopics = ["Provenance", "Logistics", "Returns Policy", "Bespoke Inquiries"];
 
-// 2. 导出组件：必须使用 export default 解决 ts(2306) 报错
 export default function FaqClient({ faqData }: FaqClientProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedTerm, setDebouncedTerm] = useState('');
 
-  // 搜索防抖逻辑
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedTerm(searchTerm), 300);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // 生成 GEO (AI搜索) 结构化数据
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "mainEntity": faqData.flatMap(section => 
-      section.items.map(item => ({
-        "@type": "Question",
-        "name": item.question,
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": item.answer
-        }
-      }))
-    )
-  };
-
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
     if (element) {
-      window.scrollTo({
-        top: element.getBoundingClientRect().top + window.pageYOffset - 100,
-        behavior: 'smooth'
-      });
+      const offset = 120;
+      const elementPosition = element.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - offset;
+      window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
     }
   };
 
   return (
     <div className="w-full text-black antialiased">
-      {/* 注入 SEO 结构化脚本 */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
-
-      {/* 搜索区域：纯黑视觉 */}
+      {/* 搜索区域 */}
       <div className="mb-20 max-w-4xl">
         <div className="relative border-b-2 border-black pb-2 flex items-end">
           <input
             type="text"
+            aria-label="Search FAQ"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="SEARCH STUDIO ARCHIVE..."
@@ -94,7 +69,7 @@ export default function FaqClient({ faqData }: FaqClientProps) {
       </div>
 
       <div className="flex flex-col lg:flex-row gap-16 md:gap-24">
-        {/* 左侧导航 INDEX：强制全黑，不发灰 */}
+        {/* 左侧导航 INDEX */}
         <nav className="hidden lg:block w-64 sticky top-48 h-fit">
           <div className="relative pb-6 mb-8 border-b border-black/20">
             <p className="text-[11px] tracking-[0.5em] uppercase font-black text-black">Index</p>
@@ -119,7 +94,7 @@ export default function FaqClient({ faqData }: FaqClientProps) {
           </div>
         </nav>
 
-        {/* 内容主体：语义化标签与压缩行距 */}
+        {/* 内容主体 */}
         <div className="flex-1 space-y-24">
           {faqData.map((section) => {
             const filteredItems = section.items.filter(item =>
@@ -165,20 +140,16 @@ export default function FaqClient({ faqData }: FaqClientProps) {
         </div>
       </div>
 
-     {/* 极简主义底部 - 完全对照参考图设计 */}
       <footer className="mt-60 mb-40 flex flex-col items-center justify-center text-center">
         <h2 className="text-[28px] md:text-[42px] font-light tracking-[0.15em] text-black mb-12 uppercase">
           Still Have Questions?
         </h2>
-        
         <a 
           href="mailto:concierge@linjinluxury.com" 
           className="bg-black text-white px-16 py-6 text-[12px] font-bold uppercase tracking-[0.4em] hover:opacity-80 transition-opacity duration-300"
         >
           Contact Us
         </a>
-
-        {/* 极细的品牌脚注，保持呼吸感 */}
         <div className="mt-40 text-[9px] tracking-[0.5em] uppercase font-bold text-black/20">
           LINJIN LUXURY ARCHIVE © 2026
         </div>
