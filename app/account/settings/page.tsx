@@ -62,7 +62,7 @@ export default function AccountSettingsPage() {
       .single();
 
     if (data && data.address) {
-      let loadedAddress = data.address;
+      const loadedAddress = data.address; // 👈 完美修复：将 let 改为了 const
       
       // 兼容旧数据：如果数据库存的是全称，自动转为 ISO 代码
       if (loadedAddress.country === 'United States') {
