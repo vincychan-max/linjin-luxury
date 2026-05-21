@@ -18,6 +18,7 @@ interface ValidationResult {
       addressComponents: any[];
     };
     uspsData?: any;
+    suggestions?: any[];
   } | null;
   suggestions?: any[];
 }
@@ -35,7 +36,6 @@ export default function AddressBookPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  // 表单状态管理
   const [form, setForm] = useState({
     name: '',
     phone: '',
@@ -50,7 +50,6 @@ export default function AddressBookPage() {
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
 
-  // ==================== 数据加载 ====================
   const loadAddresses = useCallback(async (userId: string) => {
     const { data, error } = await supabase
       .from('addresses')
@@ -68,7 +67,6 @@ export default function AddressBookPage() {
     setLoading(false);
   }, [supabase]);
 
-  // ==================== 初始化与实时监听 ====================
   useEffect(() => {
     let channel: any = null;
 
@@ -110,7 +108,6 @@ export default function AddressBookPage() {
     };
   }, [supabase, router, loadAddresses]);
 
-  // ==================== 地址验证 API 调用 ====================
   const validateAddress = async (): Promise<boolean> => {
     if (!form.street.trim() || !form.city.trim() || !form.zip.trim()) {
       toast.error('Please fill street, city and zip for validation');
@@ -149,7 +146,6 @@ export default function AddressBookPage() {
     }
   };
 
-  // ==================== 最终保存逻辑 ====================
   const performSave = async () => {
     if (!currentUserId) return;
 
@@ -201,7 +197,6 @@ export default function AddressBookPage() {
     if (isValid) await performSave();
   };
 
-  // ==================== 辅助功能 ====================
   const deleteAddress = async (id: string) => {
     if (!confirm('Are you sure you want to delete this address?')) return;
     await supabase.from('addresses').delete().eq('id', id);
