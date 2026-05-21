@@ -1,5 +1,6 @@
 // app/sitemap.ts
 import { MetadataRoute } from 'next';
+import { createClient } from '@supabase/supabase-js'; // 👈 引入 Supabase 客户端
 
 interface HygraphProduct {
   slug: string;
@@ -12,10 +13,16 @@ interface HygraphJournal {
   updatedAt: string;
 }
 
-interface HygraphFaq {
+// 👈 定义 Supabase FAQ 的结构
+interface SupabaseFaq {
   slug: string;
-  updatedAt: string;
+  updated_at: string;
 }
+
+/** 初始化服务端的 Supabase 客户端 */
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /** 辅助函数：安全日期格式化 */
 function getSafeDate(dateStr: string): string {
@@ -27,7 +34,7 @@ function getSafeDate(dateStr: string): string {
   }
 }
 
-/** 通用 GraphQL 请求函数 */
+/** 通用 GraphQL 请求函数 (用于 Products 和 Journals) */
 async function hygraphFetch(query: string, variables: any = {}) {
   const endpoint = process.env.NEXT_PUBLIC_HYGRAPH_ENDPOINT;
   const token = process.env.HYGRAPH_TOKEN;
@@ -47,7 +54,7 @@ async function hygraphFetch(query: string, variables: any = {}) {
   return response.json();
 }
 
-/** 1. 抓取产品 (分页) */
+/** 1. 抓取产品 (从 Hygraph 分页) */
 async function getAllHygraphProducts(): Promise<HygraphProduct[]> {
   const allProducts: HygraphProduct[] = [];
   let skip = 0;
@@ -78,7 +85,7 @@ async function getAllHygraphProducts(): Promise<HygraphProduct[]> {
   }
 }
 
-/** 2. 抓取 Journal 文章 */
+/** 2. 抓取 Journal 文章 (从 Hygraph) */
 async function getHygraphJournals(): Promise<HygraphJournal[]> {
   const query = `query GetJournalsForSitemap { journals(first: 200, stage: PUBLISHED) { slug updatedAt } }`;
   try {
@@ -90,14 +97,19 @@ async function getHygraphJournals(): Promise<HygraphJournal[]> {
   }
 }
 
-/** 3. 抓取动态 FAQ 条目 */
-async function getHygraphFaqs(): Promise<HygraphFaq[]> {
-  const query = `query GetFaqsForSitemap { faqs(first: 200, stage: PUBLISHED) { slug updatedAt } }`;
+/** 3. 抓取动态 FAQ 条目 (👈 改为从 Supabase 读取) */
+async function getSupabaseFaqs(): Promise<SupabaseFaq[]> {
   try {
-    const json = await hygraphFetch(query);
-    return json?.data?.faqs || [];
+    // 假设你的 Supabase 表名叫 'faqs'，包含 'slug' 和 'updated_at' 字段
+    const { data, error } = await supabase
+      .from('faqs')
+      .select('slug, updated_at')
+      .limit(200);
+
+    if (error) throw error;
+    return data || [];
   } catch (error) {
-    console.error('🔥 FAQ Sitemap Error:', error);
+    console.error('🔥 FAQ Sitemap (Supabase) Error:', error);
     return [];
   }
 }
@@ -107,11 +119,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || 'https://www.linjinluxury.com';
   const STATIC_LAST_MOD = '2026-05-01T00:00:00.000Z';
 
-  // 同时并行请求三个数据源
+  // 同时并行请求所有数据源 (FAQ 改为调用 Supabase 函数)
   const [products, journals, faqs] = await Promise.all([
     getAllHygraphProducts(),
     getHygraphJournals(),
-    getHygraphFaqs(),
+    getSupabaseFaqs(),
   ]);
 
   // A. 静态页面
@@ -151,10 +163,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.75,
   }));
 
-  // D. 动态 FAQ 详情页
+  // D. 动态 FAQ 详情页 (👈 适配 Supabase 返回的字段格式)
   const faqEntries = faqs.map((f) => ({
     url: `${baseUrl}/faq/${f.slug}`,
-    lastModified: getSafeDate(f.updatedAt),
+    lastModified: getSafeDate(f.updated_at), // 注意：Supabase 通常是下划线 updated_at
     changeFrequency: 'monthly' as const,
     priority: 0.65,
   }));
