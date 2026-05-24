@@ -1,4 +1,4 @@
-import { hygraph } from "@/lib/hygraph";
+import { fetchFromHygraph } from "@/lib/hygraph";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { Metadata } from 'next';
@@ -20,7 +20,8 @@ const GET_POST_DETAIL = `
 // 动态 SEO
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const data: any = await hygraph.request(GET_POST_DETAIL, { slug });
+  // 已修复：使用 fetchFromHygraph
+  const data: any = await fetchFromHygraph<any>(GET_POST_DETAIL, { slug });
   const post = data?.journal;
 
   if (!post) return { title: 'Not Found | LJL' };
@@ -38,7 +39,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function PostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const data: any = await hygraph.request(GET_POST_DETAIL, { slug });
+  // 已修复：使用 fetchFromHygraph
+  const data: any = await fetchFromHygraph<any>(GET_POST_DETAIL, { slug });
   const post = data?.journal;
 
   if (!post) return notFound();

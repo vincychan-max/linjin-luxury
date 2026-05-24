@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { hygraph } from '@/lib/hygraph';
+import { fetchFromHygraph } from '@/lib/hygraph';
 import { gql } from 'graphql-request';
 
 // 🌟 核心修复：强制动态，禁止 Next.js 缓存 GET 结果
@@ -68,7 +68,8 @@ export async function GET(req: Request) {
     if (!isFullDetail) return NextResponse.json(variantIds);
     if (variantIds.length === 0) return NextResponse.json([]);
 
-    const data: any = await hygraph.request(GET_VARIANTS_BY_IDS, { ids: variantIds });
+    // 🌟 核心修改：使用 fetchFromHygraph
+    const data: any = await fetchFromHygraph<any>(GET_VARIANTS_BY_IDS, { ids: variantIds });
 
     const formattedProducts = data.productVariants.map((v: any) => {
       const parentProduct = v.products?.[0];

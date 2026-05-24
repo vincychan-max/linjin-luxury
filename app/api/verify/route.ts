@@ -1,5 +1,5 @@
+import { fetchFromHygraph } from '@/lib/hygraph';
 import { NextResponse } from 'next/server';
-import { hygraph } from '@/lib/hygraph';
 import { gql } from 'graphql-request';
 
 export async function GET(request: Request) {
@@ -43,7 +43,8 @@ export async function GET(request: Request) {
   `;
 
   try {
-    const data: any = await hygraph.request(query, { code });
+    // 3. 执行查询请求 (已替换为 fetchFromHygraph)
+    const data: any = await fetchFromHygraph<any>(query, { code });
 
     if (data.products && data.products.length > 0) {
       const p = data.products[0];
@@ -51,9 +52,8 @@ export async function GET(request: Request) {
       const nextCount = currentCount + 1;
 
       // 🌟 核心：异步触发更新，不阻塞主流程返回
-      // 也可以用 await 确保更新成功后再返回
       try {
-        await hygraph.request(incrementMutation, { 
+        await fetchFromHygraph<any>(incrementMutation, { 
           id: p.id, 
           nextCount: nextCount 
         });

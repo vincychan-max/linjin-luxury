@@ -1,4 +1,4 @@
-import { hygraph } from '@/lib/hygraph';
+import { fetchFromHygraph } from '@/lib/hygraph';
 import { NextResponse } from 'next/server';
 
 // ✅ 1. 适配 Variants 架构的查询语句
@@ -18,7 +18,7 @@ const GET_PRODUCTS = `
       variants {
         ... on ProductVariant {
           productColorEnum # 对应你截图中的枚举字段
-          images(first: 1) {   # 首页通常只需要每个规格的第一张图
+          images(first: 1) {  # 首页通常只需要每个规格的第一张图
             url
           }
         }
@@ -27,15 +27,17 @@ const GET_PRODUCTS = `
   }
 `;
 
-// ✅ 2. 启用 Next.js 15 缓存 (ISR)
+// ✅ 2. 启用 Next.js 缓存 (ISR)
 export const revalidate = 3600; 
 
 export async function GET() {
   try {
-    const { products } = await hygraph.request<{ products: any[] }>(GET_PRODUCTS);
+    // 使用 fetchFromHygraph 替换原本的 hygraph.request
+    const data = await fetchFromHygraph<any>(GET_PRODUCTS);
+    const products = data?.products || [];
 
     // ✅ 3. 数据清洗：将图片提取到顶层，方便前端 Card 组件直接渲染
-    const processedProducts = products.map(product => {
+    const processedProducts = products.map((product: any) => {
       // 提取第一个变体的第一张图片作为封面
       const mainImage = product.variants?.[0]?.images?.[0]?.url || '/placeholder.jpg';
       

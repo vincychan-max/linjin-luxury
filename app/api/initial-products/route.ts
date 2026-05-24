@@ -1,4 +1,4 @@
-import { hygraph } from '@/lib/hygraph';
+import { fetchFromHygraph } from '@/lib/hygraph';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
@@ -37,8 +37,8 @@ export async function GET(request: NextRequest) {
       }
     `;
 
-    // 执行请求，只传递必需的 limit 变量，因为 gender 已经硬编码在查询字符串里了
-    const data: any = await hygraph.request(query, { limit });
+    // 执行请求，使用 fetchFromHygraph 替换掉原来的 hygraph.request
+    const data: any = await fetchFromHygraph<any>(query, { limit });
     
     // 安全地提取产品数据，防止因为 data 为 undefined 导致 .map 报错
     const products = data?.products || [];

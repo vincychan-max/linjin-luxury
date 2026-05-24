@@ -1,5 +1,5 @@
+import { fetchFromHygraph } from '@/lib/hygraph';
 import { NextResponse } from 'next/server';
-import { hygraph } from '@/lib/hygraph';
 import { gql } from 'graphql-request';
 
 export async function GET(request: Request) {
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     }
   }
 
-  // 2. 编写 GraphQL 查询 (🌟 严格匹配你的 Hygraph 截图字段)
+  // 2. 编写 GraphQL 查询
   const query = gql`
     query GetMoreProducts(
       $limit: Int!, 
@@ -51,7 +51,6 @@ export async function GET(request: Request) {
             compareAtPrice
             isNew
             isBestSeller
-            # 🌟 核心修正：使用你截图中的 productColorEnum
             variants {
               ... on ProductVariant {
                 productColorEnum 
@@ -67,14 +66,14 @@ export async function GET(request: Request) {
   `;
 
   try {
-    // 3. 执行请求
-    const data: any = await hygraph.request(query, { 
+    // 3. 执行请求 (已替换为 fetchFromHygraph)
+    const data: any = await fetchFromHygraph<any>(query, { 
       limit, 
       after,
       where: whereClause
     });
 
-    // 4. 格式化返回结果，确保前端 ProductGrid 拿到的数据结构一致
+    // 4. 格式化返回结果
     const formattedNodes = data.productsConnection.edges.map((edge: any) => {
       const node = edge.node;
       

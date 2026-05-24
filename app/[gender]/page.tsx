@@ -1,4 +1,4 @@
-import { hygraph } from '@/lib/hygraph';
+import { fetchFromHygraph } from '@/lib/hygraph';
 import { GET_PRODUCTS_BY_GENDER } from '@/lib/queries';
 import ProductGrid from '../components/ProductGrid';
 import Pagination from '../components/Pagination';
@@ -56,8 +56,8 @@ export default async function GenderPage({
   
   const skip = (page - 1) * PAGE_SIZE;
 
-  // 获取数据
-  const data = await hygraph.request(GET_PRODUCTS_BY_GENDER, {
+  // 获取数据 - 添加了 <any> 来解决 TypeScript 报错
+  const data = await fetchFromHygraph<any>(GET_PRODUCTS_BY_GENDER, {
     slug: gender,
     first: PAGE_SIZE,
     skip: skip,
