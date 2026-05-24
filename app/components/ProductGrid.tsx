@@ -4,37 +4,40 @@ import Image from 'next/image';
 import Link from 'next/link';
 
 /** ====================== 类型定义 ====================== */
-type Product = {
+export type Product = {
   id: string;
   name: string;
   slug: string;
   price: number;
   images: string[];
   isNew?: boolean;
-  isLimited?: boolean;    // ✅ 新增：对应后台的布尔值开关
+  isLimited?: boolean;
   material?: string;
-  categorySlug?: string;  // 兼容旧的分类判断
+  categorySlug?: string;
 };
 
-// Props 接口
 interface ProductGridProps {
   initialProducts: Product[];
-  category: string | null;
-  gender: string | null;
-  page?: number | null;               // 可选
-  initialEndCursor?: string | null;    // 支持游标分页
+  category?: string | null;
+  gender?: string | null;
+  page?: number;            // 默认为 1
+  initialEndCursor?: string | null;
 }
 
+/**
+ * ProductGrid 组件
+ * 负责渲染产品列表，并处理限量款与普通款的路径分流逻辑
+ */
 export default function ProductGrid({
   initialProducts,
   category,
   gender,
-  page = 1,                            // 设置默认值
-  initialEndCursor,                    // 接收该属性
+  page = 1,
+  initialEndCursor,
 }: ProductGridProps) {
   
-  // 如果当前分类没有产品
-  if (initialProducts.length === 0) {
+  // 1. 兜底处理：如果无产品数据
+  if (!initialProducts || initialProducts.length === 0) {
     return (
       <div className="text-center py-40 bg-white">
         <h2 className="text-[11px] font-bold tracking-[0.4em] uppercase text-black mb-4">
@@ -52,9 +55,8 @@ export default function ProductGrid({
       {/* 产品网格 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-16 md:gap-y-24">
         {initialProducts.map((product, index) => {
-          /** * ✅ 核心逻辑：路径分流
-           * 优先判断后台的 isLimited 开关，
-           * 其次兼容 categorySlug 是否为 'limited-edition'
+          /** * 核心逻辑：路径分流
+           * 优先判断后台的 isLimited 开关，其次兼容 categorySlug
            */
           const isLimitedItem = product.isLimited || product.categorySlug === 'limited-edition';
           
@@ -72,11 +74,11 @@ export default function ProductGrid({
                     fill
                     sizes="(max-width: 768px) 50vw, 25vw"
                     className="object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-105"
-                    // 只有在第一页且是前几个产品时开启优先加载
+                    // 仅第一页的前 8 个产品开启优先加载，极大提升 LCP 性能
                     priority={page === 1 && index < 8}
                   />
                   
-                  {/* 状态标签：如果是限量款或新品则显示 */}
+                  {/* 状态标签 */}
                   <div className="absolute top-4 left-4 flex flex-col gap-2">
                     {isLimitedItem && (
                       <span className="text-[9px] font-bold tracking-tighter uppercase bg-black text-white px-2 py-1">
@@ -105,11 +107,11 @@ export default function ProductGrid({
         })}
       </div>
 
-      {/* 分页状态展示 */}
-      {(page && page > 1) && (
+      {/* 分页进度提示 */}
+      {page > 1 && (
         <div className="mt-16 text-center">
-          <p className="text-[10px] tracking-[0.5em] text-zinc-400">
-            PAGE {page}
+          <p className="text-[10px] tracking-[0.5em] text-zinc-400 uppercase">
+            Page {page}
           </p>
         </div>
       )}

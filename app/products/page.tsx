@@ -1,7 +1,8 @@
 import { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { hygraph } from '@/lib/hygraph';
+import { fetchFromHygraph } from '@/lib/hygraph';
+import Script from 'next/script';
 
 /** ====================== ISR ====================== */
 export const revalidate = 3600;
@@ -54,9 +55,7 @@ export default async function LimitedArchivePage() {
     }).format(price);
 
   /** ====================== Data ====================== */
-  const data = await hygraph.request<{
-    products: Product[];
-  }>(`
+  const query = `
     query GetArchiveProducts {
       products(where: { isLimited: true }, orderBy: createdAt_DESC) {
         id
@@ -72,10 +71,12 @@ export default async function LimitedArchivePage() {
         }
       }
     }
-  `);
+  `;
 
+  const data: any = await fetchFromHygraph(query);
+  
   const products =
-    data.products?.map((p) => ({
+    data?.products?.map((p: Product) => ({
       ...p,
       previewImage:
         p.variants?.[0]?.images?.[0]?.url || '/placeholder.jpg',
@@ -112,7 +113,7 @@ export default async function LimitedArchivePage() {
           name: 'Archive Product Cluster',
           numberOfItems: products.length,
 
-          itemListElement: products.map((p, i) => ({
+          itemListElement: products.map((p: any, i: number) => ({
             '@type': 'ListItem',
             position: i + 1,
 
@@ -194,7 +195,7 @@ export default async function LimitedArchivePage() {
 
       {/* ====================== Grid ====================== */}
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-16">
-        {products.map((p) => (
+        {products.map((p: any) => (
           <Link
             key={p.id}
             href={`/limited/${p.slug}`}

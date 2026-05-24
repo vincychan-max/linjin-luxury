@@ -1,4 +1,4 @@
-import { hygraph } from "@/lib/hygraph";
+import { fetchFromHygraph } from "@/lib/hygraph";
 import Link from "next/link";
 import Image from "next/image";
 import Script from "next/script";
@@ -97,7 +97,8 @@ export default async function JournalListPage() {
   let posts: Journal[] = [];
 
   try {
-    const data: any = await hygraph.request(GET_ALL_JOURNALS);
+    // 使用统一的 fetchFromHygraph
+    const data: any = await fetchFromHygraph(GET_ALL_JOURNALS);
     posts = data?.journals || [];
   } catch (error) {
     console.error("Journal fetch error:", error);

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
 import Script from "next/script";
-import { hygraph } from "@/lib/hygraph";   // 推荐统一使用这个
+import { fetchFromHygraph } from "@/lib/hygraph"; // 统一使用标准化的 fetch 函数
 
 import HeroSection from "./components/HeroSection";
 import LimitedGallery from "./components/LimitedGallery";
@@ -51,26 +51,30 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 /** ====================== 获取产品数据 ====================== */
 async function getProduct(slug: string) {
-  try {
-    const { product } = await hygraph.request<{ product: Product | null }>(`
-      query GetLimitedProduct($slug: String!) {
-        product(where: { slug: $slug }, stage: PUBLISHED) {
-          id
-          name
-          slug
-          price
-          description { html text }
-          isLimited
-          variants(first: 1) {
-            ... on ProductVariant {
-              images {
-                url
-              }
+  const query = `
+    query GetLimitedProduct($slug: String!) {
+      product(where: { slug: $slug }, stage: PUBLISHED) {
+        id
+        name
+        slug
+        price
+        description { html text }
+        isLimited
+        variants(first: 1) {
+          ... on ProductVariant {
+            images {
+              url
             }
           }
         }
       }
-    `, { slug });
+    }
+  `;
+
+  try {
+    // 使用标准化的 fetchFromHygraph
+    const data: any = await fetchFromHygraph(query, { slug });
+    const product = data?.product;
 
     if (!product) return null;
 

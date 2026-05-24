@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { hygraph } from '@/lib/hygraph';
+import { fetchFromHygraph } from '@/lib/hygraph'; // 统一使用标准 fetch 函数
 import Script from 'next/script';
 
 export const revalidate = 3600;
@@ -70,8 +70,7 @@ export default async function LimitedArchivePage() {
       minimumFractionDigits: 0,
     }).format(price);
 
-  // 查询限量产品
-  const { products } = await hygraph.request<{ products: Product[] }>(`
+  const query = `
     query GetAllLimited {
       products(
         where: { isLimited: true }
@@ -91,7 +90,11 @@ export default async function LimitedArchivePage() {
         }
       }
     }
-  `);
+  `;
+
+  // 查询限量产品
+  const data: any = await fetchFromHygraph(query);
+  const products: Product[] = data?.products || [];
 
   const formattedProducts: FormattedProduct[] = products.map((p) => ({
     ...p,
@@ -111,7 +114,7 @@ export default async function LimitedArchivePage() {
       itemListElement: formattedProducts.map((product, index) => ({
         '@type': 'ListItem',
         position: index + 1,
-        url: `https://www.linjinluxury.com/limited/${product.slug}`,   // 保留 /limited/ 路径
+        url: `https://www.linjinluxury.com/limited/${product.slug}`,
         name: product.name,
         image: product.previewImage,
       })),
@@ -175,7 +178,7 @@ export default async function LimitedArchivePage() {
           {formattedProducts.map((product) => (
             <Link
               key={product.id}
-              href={`/limited/${product.slug}`}        // ← 保留 /limited/ 路径
+              href={`/limited/${product.slug}`}
               className="group block"
             >
               <div className="relative aspect-[4/5] bg-neutral-900 overflow-hidden mb-8 border border-white/5">

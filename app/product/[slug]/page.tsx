@@ -1,4 +1,4 @@
-import { hygraph } from '@/lib/hygraph';
+import { fetchFromHygraph } from '@/lib/hygraph';
 import ProductClient from './ProductClient'; 
 import { gql } from 'graphql-request';
 import { notFound } from 'next/navigation';
@@ -86,7 +86,7 @@ function getRealPath(product: any, baseUrl: string) {
 export async function generateStaticParams() {
   const GET_ALL_SLUGS = gql` query { products(stage: PUBLISHED) { slug } } `;
   try {
-    const data: any = await hygraph.request(GET_ALL_SLUGS);
+    const data: any = await fetchFromHygraph(GET_ALL_SLUGS);
     return data.products?.map((prod: any) => ({ slug: prod.slug })) || [];
   } catch { return []; }
 }
@@ -99,7 +99,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const baseUrl = 'https://www.linjinluxury.com';
 
   try {
-    const data: any = await hygraph.request(GET_PRODUCT_DEEP, { slug });
+    const data: any = await fetchFromHygraph(GET_PRODUCT_DEEP, { slug });
     const product = data?.product;
     if (!product) return { title: 'Product Not Found | LINJIN LUXURY' };
 
@@ -153,13 +153,13 @@ export default async function ProductPage({ params }: Props) {
   const baseUrl = 'https://www.linjinluxury.com';
 
   try {
-    const productData: any = await hygraph.request(GET_PRODUCT_DEEP, { slug });
+    const productData: any = await fetchFromHygraph(GET_PRODUCT_DEEP, { slug });
     if (!productData?.product) return notFound();
 
     const product = productData.product;
     const realPath = getRealPath(product, baseUrl);
     
-    const recData: any = await hygraph.request(GET_RECOMMENDED_PRODUCTS, { 
+    const recData: any = await fetchFromHygraph(GET_RECOMMENDED_PRODUCTS, { 
       currentId: product.id,
       categorySlug: product.category?.slug || ""
     });

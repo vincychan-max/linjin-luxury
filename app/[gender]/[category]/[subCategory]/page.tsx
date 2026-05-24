@@ -1,4 +1,4 @@
-import { hygraph } from '@/lib/hygraph';
+import { fetchFromHygraph } from '@/lib/hygraph';
 import ProductListClient from './ProductListClient';
 import { gql } from 'graphql-request';
 import { notFound } from 'next/navigation';
@@ -33,7 +33,6 @@ const GET_CATEGORY_BY_SLUG = gql`
 
 /**
  * 2. 动态生成产品查询语句
- * 🌟 优化：加入 isLimited 字段
  */
 function getProductsQuery(isAll: boolean) {
   const productFields = `
@@ -115,7 +114,6 @@ function generateCombinedSchema(products: any[], params: { gender: string; categ
     "name": `${categoryName} Collection | LINJIN LUXURY`,
     "numberOfItems": products.length,
     "itemListElement": products.map((prod, index) => {
-      // ✅ 修复：Schema 里的链接也要根据 isLimited 区分
       const path = prod.isLimited ? '/limited/' : '/product/';
       
       return {
@@ -150,7 +148,7 @@ export async function generateMetadata({ params }: { params: Promise<{ gender: s
   const internalSlug = getInternalSlug(gender, category);
   
   try {
-    const catRes: any = await hygraph.request(GET_CATEGORY_BY_SLUG, {
+    const catRes: any = await fetchFromHygraph(GET_CATEGORY_BY_SLUG, {
       categorySlug: internalSlug,
       genderSlug: gender.toLowerCase()
     });
@@ -191,7 +189,7 @@ export async function generateStaticParams() {
     }
   `;
   try {
-    const { categories } = await hygraph.request(GET_ALL_PATHS) as any;
+    const { categories } = await fetchFromHygraph(GET_ALL_PATHS) as any;
     const paths = [];
     for (const cat of categories || []) {
       if (cat?.gender?.slug && cat?.slug) {
@@ -225,7 +223,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ gende
   let productRes: any = null;
 
   try {
-    const catData: any = await hygraph.request(GET_CATEGORY_BY_SLUG, {
+    const catData: any = await fetchFromHygraph(GET_CATEGORY_BY_SLUG, {
       categorySlug: internalCategorySlug,
       genderSlug: gender
     });
@@ -238,7 +236,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ gende
         genderSlug: gender,
         ...(!isAll && { subCategorySlug: subCategory })
       };
-      productRes = await hygraph.request(query, variables);
+      productRes = await fetchFromHygraph(query, variables);
     }
   } catch (error) {
     console.error('🔥 LinJin Server Error:', error);
@@ -246,7 +244,6 @@ export default async function CategoryPage({ params }: { params: Promise<{ gende
 
   if (!currentCategory) notFound();
 
-  // --- 渲染逻辑处理 ---
   const activeSubCategoryData = isAll 
     ? null 
     : currentCategory.subCategories.find((sub: any) => sub.slug === subCategory);
@@ -263,7 +260,6 @@ export default async function CategoryPage({ params }: { params: Promise<{ gende
     ? currentCategory.collectionBackgroundImage?.url 
     : (activeSubCategoryData?.collectionBackgroundImage?.url || currentCategory.collectionBackgroundImage?.url)) || "";
 
-  // ✅ 核心修改：数据清洗映射，确保 isLimited 传给客户端
   const formattedProducts = productRes?.products?.map((prod: any) => {
     const realVariants = prod.variants?.filter((v: any) => v.id) || [];
     const firstVariant = realVariants[0] || {};
@@ -274,7 +270,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ gende
       slug: prod.slug,
       price: prod.price,
       isNew: prod.isNew || false,
-      isLimited: prod.isLimited || false, // ✅ 新增：传递限量标记
+      isLimited: prod.isLimited || false,
       material: prod.material,
       defaultVariantId: firstVariant.id || null,
       productColorEnum: firstVariant.productColorEnum || 'Classic',
@@ -292,7 +288,6 @@ export default async function CategoryPage({ params }: { params: Promise<{ gende
         ))}
       </Script>
 
-      {/* 🌟 SEO/GEO 语义增强层 */}
       <section className="sr-only" aria-hidden="true">
         <h1>{displayTitle} - LINJIN LUXURY</h1>
         <p>{displayDesc}</p>

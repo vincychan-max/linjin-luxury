@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { hygraph } from '@/lib/hygraph';
+import { fetchFromHygraph } from '@/lib/hygraph';
 import Link from 'next/link';
 import Script from 'next/script';
 import ProductGrid from '../../components/ProductGrid';
@@ -157,7 +157,8 @@ export default async function CollectionPage({ params, searchParams }: Props) {
     if (gender) whereCondition.gender = { slug: gender };
     if (categorySlug) whereCondition.categories_some = { slug: categorySlug };
 
-    const data: any = await hygraph.request(GET_COLLECTION_PRODUCTS, {
+    // ✅ 修改：使用 fetchFromHygraph 代替 hygraph.request
+    const data: any = await fetchFromHygraph(GET_COLLECTION_PRODUCTS, {
       where: whereCondition,
       first: PAGE_SIZE,
       skip: (page - 1) * PAGE_SIZE,
