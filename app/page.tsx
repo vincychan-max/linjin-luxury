@@ -376,10 +376,11 @@ export default async function HomePage() {
               <div className="flex flex-col md:flex-row items-end justify-between gap-12 pt-12 border-t border-white/10">
                 <div className="max-w-lg">
                   <p className="text-white/80 text-lg md:text-xl font-light leading-relaxed tracking-tight">
-                    Directly from our Southern China atelier to your collection. <br />
-                    Handcrafted by master artisans with 20+ years of bench-work experience. <br />
-                    Eliminating the excess. Focusing on the stitch. <span className="italic font-serif text-white">archival in nature</span>.
-                  </p>
+  Directly from our design studio in Southern China to your collection. <br />
+  Developed with a focus on material selection and product construction. <br />
+  Refined through careful design and production processes.
+  <span className="italic font-serif text-white"> archival in nature</span>.
+</p>
                   
                   <div className="flex items-center gap-3 mt-8">
                     <div className="relative flex h-2 w-2">
@@ -404,6 +405,22 @@ export default async function HomePage() {
           </div>
         </section>
 
+
+{/* --- 1.5 HOUSE STATEMENT --- */}
+<section className="py-32 bg-white border-t border-black/5 px-6 md:px-24">
+  <div className="max-w-[900px] mx-auto text-center">
+    <h2 className="text-[10px] uppercase tracking-[0.5em] text-black/30 mb-10">
+      House Statement
+    </h2>
+
+    <p className="text-xl md:text-2xl font-light leading-relaxed tracking-tight text-black/80">
+      LINJIN LUXURY operates as a design and production studio focused on leather goods development.
+      Each piece is shaped through material selection, structural construction, and controlled small-batch production.
+      The result is a restrained and functional interpretation of contemporary leather craftsmanship.
+    </p>
+  </div>
+</section>
+
         {/* --- 2. CATEGORY GRID --- */}
         <section className="py-40 bg-white px-6 md:px-24">
           <div className="max-w-[1700px] mx-auto grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -417,7 +434,7 @@ export default async function HomePage() {
               />
               <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors" />
               <div className="absolute bottom-10 left-10">
-                <span className="text-white text-[11px] tracking-[0.3em] uppercase font-bold">Women</span>
+                <span className="text-white text-[11px] tracking-[0.3em] uppercase font-bold">Collection I — Women</span>
               </div>
             </Link>
             
@@ -430,7 +447,7 @@ export default async function HomePage() {
                 className="object-cover opacity-90 group-hover:scale-105 transition-transform duration-[3s]" 
               />
               <div className="absolute bottom-10 left-10">
-                <span className="text-white text-[11px] tracking-[0.3em] uppercase font-bold">Men</span>
+                <span className="text-white text-[11px] tracking-[0.3em] uppercase font-bold"> Collection II — Men</span>
               </div>
             </Link>
             
@@ -443,7 +460,7 @@ export default async function HomePage() {
                 className="object-cover opacity-90 group-hover:scale-105 transition-transform duration-[3s]" 
               />
               <div className="absolute bottom-10 left-10">
-                <span className="text-white text-[11px] tracking-[0.3em] uppercase font-bold">Accessory</span>
+                <span className="text-white text-[11px] tracking-[0.3em] uppercase font-bold">Collection III — Accessories</span>
               </div>
             </Link>
           </div>
@@ -600,26 +617,26 @@ export default async function HomePage() {
         {/* --- 5. STUDIO PROTOCOL --- */}
         <section className="py-32 bg-white border-t border-black/5 px-6 md:px-24">
           <div className="max-w-[1700px] mx-auto grid grid-cols-1 md:grid-cols-4 gap-20 md:gap-12">
-            <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-black/20 leading-loose">Studio <br /> Protocol</h2>
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-black/20 leading-loose"> Production <br /> System </h2>
             
             <div className="space-y-6">
               <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 underline underline-offset-8 decoration-black/10">01. Provenance</h4>
               <p className="text-[11px] text-black/50 uppercase tracking-widest leading-loose">
-                Every LINJIN LUXURY piece is materialised in our private atelier. Direct-to-source traceability ensures authentic artisan provenance without traditional retail markups.
+                Each piece is produced under controlled studio conditions with emphasis on material consistency, structural integrity, and long-term usability.
               </p>
             </div>
             
             <div className="space-y-6">
               <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 underline underline-offset-8 decoration-black/10">02. Materiality</h4>
               <p className="text-[11px] text-black/50 uppercase tracking-widest leading-loose">
-                Utilising Grade-A Togo, Epsom, and Box Calf leathers from gold-rated European tanneries. Each batch is hand-inspected for structural integrity and grain consistency.
+                Materials are sourced from certified tanneries and inspected in small batches prior to production.
               </p>
             </div>
             
             <div className="space-y-6">
               <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 underline underline-offset-8 decoration-black/10">03. Passage</h4>
               <p className="text-[11px] text-black/50 uppercase tracking-widest leading-loose">
-                Secure global logistics through our Discreet Worldwide Passage protocol. All archival pieces are insured and shipped in climate-controlled packaging to 50+ countries.
+                Every piece is delivered through fully tracked and insured international logistics systems, ensuring secure global passage from atelier to client.
               </p>
             </div>
           </div>

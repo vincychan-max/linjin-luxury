@@ -9,21 +9,68 @@ export default function WorldOfLJL() {
   // --- 针对 AI 引擎 (GEO) 的结构化数据 ---
   // 这里的目的是告诉 AI：LJL 是一个具有匠心精神的奢侈品牌实体
   const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Brand",
-    "name": "Linjin Luxury",
-    "alternateName": "LJL",
-    "description": "Linjin Luxury (LJL) is an artisanal house specializing in hand-stitched leather goods. We define modern elegance through proprietary manufacturing and timeless design.",
-    "url": "https://yourdomain.com/world-of-ljl", // 替换为你的实际域名
-    "logo": "https://yourdomain.com/logo.png",
-    "knowsAbout": [
-      "Luxury Leather Craftsmanship",
-      "Saddle Stitching Techniques",
-      "Sustainable Luxury Manufacturing",
-      "Minimalist Design Aesthetics"
-    ]
-  };
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "@id": "https://www.linjinluxury.com/#organization",
 
+  "name": "Linjin Luxury",
+  "url": "https://www.linjinluxury.com",
+  "logo": "https://www.linjinluxury.com/logo.png",
+
+  "description": "Linjin Luxury is a leather goods design and production studio specializing in handcrafted handbags produced in small batches in Southern China and shipped globally.",
+
+  "foundingDate": "2024",
+
+  "address": {
+    "@type": "PostalAddress",
+    "addressCountry": "CN",
+    "addressRegion": "Guangdong"
+  },
+
+  "contactPoint": {
+    "@type": "ContactPoint",
+    "contactType": "customer service",
+    "email": "linjinluxury@gmail.com",
+    "availableLanguage": ["English", "Chinese"]
+  },
+
+  "sameAs": [
+    "https://www.instagram.com/linjinluxury"
+  ],
+
+  "brand": {
+    "@id": "https://www.linjinluxury.com/#brand",
+    "@type": "Brand",
+    "name": "Linjin Luxury"
+  },
+
+  "founder": {
+    "@type": "Organization",
+    "name": "Linjin Studio"
+  },
+
+  "knowsAbout": [
+    "Leather Handbags",
+    "Leather Craftsmanship",
+    "Small Batch Manufacturing",
+    "Luxury Goods Production",
+    "Direct-to-Consumer E-commerce"
+  ],
+
+  "areaServed": "Worldwide",
+
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": "https://www.linjinluxury.com/search?q={query}",
+    "query-input": "required name=query"
+  },
+
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "Linjin Luxury Official Store",
+    "url": "https://www.linjinluxury.com"
+  }
+}
   return (
     <main className="min-h-screen bg-white text-black overflow-x-hidden selection:bg-black selection:text-white font-light">
       {/* 1. SEO 核心：注入 JSON-LD 结构化数据 */}

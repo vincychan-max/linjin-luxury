@@ -1,83 +1,78 @@
-import React from 'react';
-
 export default function ReturnsPolicy() {
   return (
-    <div className="max-w-4xl mx-auto px-6 py-24 min-h-screen">
-      {/* Header Section */}
-      <header className="text-center mb-20 border-b border-black/5 pb-12">
-        <h1 className="text-[14px] tracking-[8px] uppercase font-light text-black">
-          Returns & Exchanges
-        </h1>
-        <p className="text-[10px] tracking-[2px] text-gray-400 uppercase mt-4">
-          Our Commitment to Quality
-        </p>
-      </header>
+    <div className="min-h-screen bg-white text-black">
+      <div className="max-w-3xl mx-auto px-6 py-28">
 
-      {/* Content Section */}
-      <div className="space-y-12 text-[13px] leading-[1.8] font-light text-black tracking-wide">
-        
-        <section>
-          <h2 className="text-[11px] tracking-[4px] uppercase font-medium mb-6">
-            14-Day Return Policy
+        {/* HEADER */}
+        <header className="text-center mb-20">
+          <h1 className="text-[24px] font-light tracking-[0.3em] uppercase">
+            Returns & Exchanges
+          </h1>
+          <p className="mt-6 text-[11px] tracking-[0.3em] text-black/40 uppercase">
+            Policy Overview
+          </p>
+        </header>
+
+        {/* SECTION 1 */}
+        <section className="mb-14 border-l border-black/10 pl-6">
+          <h2 className="text-[11px] tracking-[0.35em] uppercase text-black/40 mb-4">
+            Return Eligibility
           </h2>
-          <p>
-            LINJIN LUXURY is dedicated to your satisfaction. If you are not entirely pleased with your selection, 
-            you may request a return within 14 days of the delivery date. To be eligible, your creation must 
-            be in its original condition: unworn, unused, and accompanied by all original tags, protective 
-            packaging, and dust bags.
+          <p className="text-[13px] leading-[1.9] text-black/70">
+            Returns may be requested within 7 days of delivery. Items must be unused, in original condition,
+            and returned with original packaging.
           </p>
         </section>
 
-        <section>
-          <h2 className="text-[11px] tracking-[4px] uppercase font-medium mb-6">
-            Return Shipping & Costs
+        {/* SECTION 2 */}
+        <section className="mb-14 border-l border-black/10 pl-6">
+          <h2 className="text-[11px] tracking-[0.35em] uppercase text-black/40 mb-4">
+            Return Shipping
           </h2>
-          <p>
-            Please be advised that for returns due to personal preference, **the cost of return shipping and 
-            any associated import duties or taxes are the sole responsibility of the customer.** </p>
-          <p className="mt-4">
-            We strongly recommend utilizing a trackable and insured shipping service. LINJIN LUXURY cannot 
-            be held liable for any items lost or damaged during the transit back to our designated facility.
+          <p className="text-[13px] leading-[1.9] text-black/70">
+            Return shipping costs and any applicable import duties are the responsibility of the customer,
+            unless the return is due to a verified product defect or shipping error.
           </p>
         </section>
 
-        <section>
-          <h2 className="text-[11px] tracking-[4px] uppercase font-medium mb-6">
-            Manufacturing Defects
+        {/* SECTION 3 */}
+        <section className="mb-14 border-l border-black/10 pl-6">
+          <h2 className="text-[11px] tracking-[0.35em] uppercase text-black/40 mb-4">
+            Product Condition Issues
           </h2>
-          <p>
-            In the rare instance of a manufacturing defect or an incorrect shipment, LINJIN LUXURY will 
-            assume full responsibility for the return logistics and associated costs. Please contact our 
-            concierge team immediately with photographic evidence to facilitate a priority resolution.
+          <p className="text-[13px] leading-[1.9] text-black/70">
+            If an item is received defective or incorrect, return shipping will be covered after verification.
           </p>
         </section>
 
-        <section>
-          <h2 className="text-[11px] tracking-[4px] uppercase font-medium mb-6">
-            Exclusions
+        {/* SECTION 4 */}
+        <section className="mb-14 border-l border-black/10 pl-6">
+          <h2 className="text-[11px] tracking-[0.35em] uppercase text-black/40 mb-4">
+            Non-Returnable Items
           </h2>
-          <p>
-            Please note that bespoke creations, personalized items (such as those with monograms), 
-            and products showing signs of use or alteration are considered final sale and are 
-            not eligible for return or exchange.
+          <p className="text-[13px] leading-[1.9] text-black/70">
+            Customized or personalized items are final sale and are not eligible for return or exchange.
           </p>
         </section>
 
-        <section>
-          <h2 className="text-[11px] tracking-[4px] uppercase font-medium mb-6">
-            Refund Process
+        {/* SECTION 5 */}
+        <section className="mb-14 border-l border-black/10 pl-6">
+          <h2 className="text-[11px] tracking-[0.35em] uppercase text-black/40 mb-4">
+            Refund Processing
           </h2>
-          <p>
-            Once our artisans have inspected and approved the returned item, your refund will be 
-            processed to the original payment method within 7-10 business days. Please note that 
-            original shipping fees are non-refundable.
+          <p className="text-[13px] leading-[1.9] text-black/70">
+            Approved refunds are issued to the original payment method within 7–10 business days.
+            Shipping fees are non-refundable.
           </p>
         </section>
 
-        <section className="pt-10 border-t border-black/5">
-          <p className="text-[11px] text-gray-400 text-center italic">
-            To initiate a return, please contact our concierge at 
-            <span className="ml-2 font-medium text-black uppercase tracking-widest">linjinluxury@gmail.com</span>
+        {/* CONTACT */}
+        <section className="mt-20 border-t border-black/10 pt-10 text-center">
+          <p className="text-[11px] tracking-[0.3em] uppercase text-black/40 mb-3">
+            Contact
+          </p>
+          <p className="text-[13px] text-black/70">
+            info@linjinluxury
           </p>
         </section>
 

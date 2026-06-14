@@ -18,8 +18,8 @@ import { GoogleAnalytics, GoogleTagManager } from '@next/third-parties/google';
  */
 export const metadata: Metadata = {
   title: {
-    default: 'LINJIN LUXURY | Leather Bags & Accessories Supplier (Women & Men)',
-    template: '%s | LINJIN Leather Goods Manufacturer',
+    default: 'LINJIN LUXURY | Premium Leather Goods & Private Atelier',
+    template: '%s | LINJIN LUXURY Atelier',
   },
 
   description:
@@ -106,44 +106,87 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Organization',
-    name: 'LINJIN LUXURY',
-    url: 'https://www.linjinluxury.com',
-    logo: 'https://www.linjinluxury.com/images/logo.png',
-    image: 'https://www.linjinluxury.com/images/hero-main.jpg',
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": "https://www.linjinluxury.com/#organization",
 
-    description:
-      'Leather goods manufacturer specializing in handbags, men bags and accessories.',
+    "name": "Linjin Luxury",
+    "url": "https://www.linjinluxury.com",
+    "logo": "https://www.linjinluxury.com/images/logo.png",
 
-    knowsAbout: [
-      'Leather Handbags',
-      'Men Bags',
-      'Leather Accessories',
-      'OEM Manufacturing',
-      'Private Label Goods',
+    "description":
+      "Linjin Luxury is a global leather goods brand with dual business model: direct-to-consumer retail and B2B OEM manufacturing services.",
+
+    "sameAs": [
+      "https://www.instagram.com/linjinluxury",
+      "https://www.tiktok.com/@linjinluxury",
+      "https://www.youtube.com/@linjinluxury",
+      "https://www.linkedin.com/company/linjin-luxury"
     ],
 
-    areaServed: ['SG', 'US', 'TH', 'VN', 'MX'],
-
-    hasOfferCatalog: {
-      '@type': 'OfferCatalog',
-      name: 'Leather Goods Collection',
-      itemListElement: [
-        {
-          '@type': 'OfferCatalog',
-          name: 'Women Handbags',
-        },
-        {
-          '@type': 'OfferCatalog',
-          name: 'Men Bags',
-        },
-        {
-          '@type': 'OfferCatalog',
-          name: 'Accessories',
-        },
-      ],
+    "brand": {
+      "@type": "Brand",
+      "@id": "https://www.linjinluxury.com/#brand",
+      "name": "Linjin Luxury"
     },
+
+    // ✅ 补齐了邮编
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "Guangzhou",
+      "addressRegion": "Guangdong",
+      "postalCode": "510000",
+      "addressCountry": "CN"
+    },
+
+    // 🚨 救命的联系方式补回来了
+    "contactPoint": [
+      {
+        "@type": "ContactPoint",
+        "contactType": "customer service",
+        "email": "service@linjinluxury.com",
+        "availableLanguage": ["English", "Chinese"]
+      },
+      {
+        "@type": "ContactPoint",
+        "contactType": "sales",
+        "email": "sales@linjinluxury.com"
+      }
+    ],
+
+    "makesOffer": {
+      "@type": "OfferCatalog",
+      "name": "Retail Leather Bags",
+      "description": "Direct-to-consumer luxury handbags"
+    },
+
+    "department": [
+      {
+        "@type": "Organization",
+        "name": "Linjin Retail Division"
+      },
+      {
+        "@type": "Organization",
+        "name": "Linjin OEM Manufacturing Division",
+        "description": "Private label and wholesale manufacturing services"
+      }
+    ],
+
+    "knowsAbout": [
+      "Leather Handbags",
+      "Luxury Leather Goods",
+      "OEM Manufacturing",
+      "Private Label Production",
+      "E-commerce Retail"
+    ],
+
+    "areaServed": "Worldwide",
+
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "https://www.linjinluxury.com/search?q={query}",
+      "query-input": "required name=query"
+    }
   };
 
   return (

@@ -64,9 +64,9 @@ export default function Footer() {
       ],
       "address": {
         "@type": "PostalAddress",
-        "addressLocality": "Los Angeles",
-        "addressRegion": "CA",
-        "addressCountry": "US"
+        "addressLocality": "Guangzhou",
+        "addressRegion": "Guangdong",
+        "addressCountry": "CN"
       }
     },
     {
@@ -190,7 +190,7 @@ export default function Footer() {
             {/* --- 信任背书与核心卖点 (Factory-Direct Luxury) --- */}
             <div className="text-[11px] mt-6 tracking-wider leading-relaxed px-4 md:px-0 flex flex-col gap-2">
               <p className="font-bold text-white opacity-80 tracking-[0.3em] uppercase">
-                The Linjin Factory
+                LINJIN LUXURY
               </p>
               <p className="opacity-40 uppercase">
                 Trusted by clients in 30+ countries · Secure payments · Global shipping

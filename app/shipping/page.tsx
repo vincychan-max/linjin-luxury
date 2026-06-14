@@ -105,7 +105,7 @@ export default function ShippingPolicy() {
             FOR LOGISTICS INQUIRIES
           </p>
           <p className="mt-4 font-medium text-black tracking-[1px]">
-            linjinluxury@gmail.com
+            info@linjinluxury.com
           </p>
         </section>
 
